@@ -1,16 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useState } from 'react'
 import { Icon } from '../../components/Icon'
-import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Card } from '../../components/ui'
 import { cx, inputClass } from '../../lib/utils'
 import { Challenges } from '../../components/Challenges'
-import { challenges } from '../../data/challenges'
+import { useChallenges } from '../../data/challenges'
+import { useQuiz } from '../../data/quizzes'
+import { useBidi, useText } from '../../i18n'
+import { processesText } from './pageText'
 import { blockedReason, initialOS, INIT_PID, reduceOS, running, treeDepth, type OSState, type PCB, type PState, type ProcAction } from '../../engines/processes'
 import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useSimulation } from '../../hooks/useSimulation'
-import { processesQuiz } from './quiz'
 
 interface ProcSim {
   os: OSState
@@ -37,8 +38,8 @@ const arrows: (Arrow & { from: PState; to: PState })[] = [
   { id: 'admit', d: 'M 180 140 Q 200 175 230 210', label: 'admit', lx: 150, ly: 185, from: 'new', to: 'ready' },
   { id: 'dispatch', d: 'M 430 255 L 570 255', label: 'dispatch', lx: 500, ly: 245, from: 'ready', to: 'running' },
   { id: 'timeout', d: 'M 570 320 L 430 320', label: 'interrupt', lx: 500, ly: 340, from: 'running', to: 'ready' },
-  { id: 'block', d: 'M 700 360 Q 690 440 640 470', label: 'I/O or wait()', lx: 745, ly: 430, from: 'running', to: 'waiting' },
-  { id: 'wake', d: 'M 360 470 Q 300 440 290 360', label: 'I/O done / child exit', lx: 225, ly: 430, from: 'waiting', to: 'ready' },
+  { id: 'block', d: 'M 700 360 Q 690 440 640 470', label: 'blockArrow', lx: 745, ly: 430, from: 'running', to: 'waiting' },
+  { id: 'wake', d: 'M 360 470 Q 300 440 290 360', label: 'wakeArrow', lx: 225, ly: 430, from: 'waiting', to: 'ready' },
   { id: 'exit', d: 'M 780 210 Q 820 175 840 140', label: 'exit()', lx: 860, ly: 185, from: 'running', to: 'terminated' },
 ]
 
@@ -73,6 +74,9 @@ export default function ProcessesPage() {
     isDone: () => true,
   })
   const { os, arrow } = sim.state
+  const t = useText(processesText)
+  const questions = useQuiz('processes')
+  const challenges = useChallenges('processes')
   const [selected, setSelected] = useState<number>(100)
   const [program, setProgram] = useState('vim')
 
@@ -87,43 +91,23 @@ export default function ProcessesPage() {
   return (
     <TopicLayout
       topicId="processes"
-      questions={processesQuiz}
-      intro={
-        <>
-          A <Term k="process">process</Term> is a program in execution. The kernel tracks each one in a{' '}
-          <Term k="pcb">PCB</Term> and moves it between states as it runs, blocks on I/O, gets preempted and finally exits.
-          New processes are created by <Term k="fork">fork()</Term> and usually load a new program with{' '}
-          <Term k="exec">exec()</Term>.
-        </>
-      }
-      keyIdeas={[
-        <>
-          <strong>One CPU, one Running process.</strong> Everything else is Ready (could run) or Waiting (blocked on
-          something).
-        </>,
-        <>
-          <strong>Waiting never goes straight to Running.</strong> When I/O finishes the process becomes Ready and must be
-          scheduled again.
-        </>,
-        <>
-          <strong>Parents must wait().</strong> A dead child stays a <Term k="zombie">zombie</Term> until its parent
-          collects its exit status.
-        </>,
-      ]}
+      questions={questions}
+      intro={t.intro}
+      keyIdeas={t.keyIdeas}
     >
       <Card
-        title="Process state diagram"
-        subtitle="Click a process to select it, then use the actions to move it between states. Watch the tokens travel."
+        title={t.diagramTitle}
+        subtitle={t.diagramSubtitle}
         actions={
           <>
             <Button size="sm" onClick={sim.back} disabled={!sim.canBack}>
-              <Icon name="stepBack" className="size-3.5" /> Undo
+              <Icon name="stepBack" className="size-3.5" /> {t.undo}
             </Button>
             <Button size="sm" onClick={sim.forward} disabled={!sim.canForward}>
-              Redo <Icon name="stepForward" className="size-3.5" />
+              {t.redo} <Icon name="stepForward" className="size-3.5" />
             </Button>
             <Button size="sm" onClick={() => sim.reset()}>
-              <Icon name="reset" className="size-3.5" /> Reset
+              <Icon name="reset" className="size-3.5" /> {t.reset}
             </Button>
           </>
         }
@@ -135,7 +119,7 @@ export default function ProcessesPage() {
           <div className="grid content-start gap-4">
             <Actions os={os} sel={sel} act={act} program={program} setProgram={setProgram} />
             <Challenges
-              items={challenges.processes}
+              items={challenges}
               met={{
                 'ch-proc-zombie': os.stats.zombies > 0,
                 'ch-proc-reap': os.stats.reaped > 0,
@@ -152,15 +136,15 @@ export default function ProcessesPage() {
       </Card>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_1fr]">
-        <Card title="Process Control Block" subtitle="What the kernel stores about the selected process.">
-          {sel ? <PcbView pcb={sel} /> : <p className="text-sm text-muted">No processes left. Create one.</p>}
+        <Card title="Process Control Block" subtitle={t.pcbSubtitle}>
+          {sel ? <PcbView pcb={sel} /> : <p className="text-sm text-muted">{t.noProcs}</p>}
         </Card>
-        <Card title="Process tree" subtitle="Every process has a parent. Orphans are adopted by init.">
+        <Card title={t.treeTitle} subtitle={t.treeSubtitle}>
           <ProcessTree os={os} selected={sel?.pid ?? null} onSelect={setSelected} />
         </Card>
       </div>
 
-      <Card title="Kernel event log" subtitle="Newest first.">
+      <Card title={t.logTitle} subtitle={t.logSubtitle}>
         <ol className="grid max-h-64 gap-1.5 overflow-y-auto text-sm" aria-live="polite">
           <AnimatePresence initial={false}>
             {os.log.map((l, i) => (
@@ -176,7 +160,7 @@ export default function ProcessesPage() {
                   i > 0 && 'opacity-70',
                 )}
               >
-                {l.text}
+                {t.msg(l.msg)}
               </motion.li>
             ))}
           </AnimatePresence>
@@ -200,6 +184,9 @@ function StateDiagram({
   animKey: number
 }) {
   const narrow = useMediaQuery('(max-width: 639px)')
+  const t = useText(processesText)
+  const fix = useBidi()
+  const arrowLabel = (a: Arrow) => (a.label === 'blockArrow' ? t.blockArrow : a.label === 'wakeArrow' ? t.wakeArrow : fix(a.label))
   const tokens = (state: PState) =>
     os.procs.filter((p) => p.state === state).map((p) => <ProcToken key={p.pid} p={p} selected={selected === p.pid} onSelect={onSelect} />)
 
@@ -226,10 +213,10 @@ function StateDiagram({
         <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm" aria-live="polite">
           {last ? (
             <>
-              Last transition: <strong>{boxes[last.from].label}</strong> to <strong>{boxes[last.to].label}</strong> ({last.label})
+              {t.lastTransition(boxes[last.from].label, boxes[last.to].label, arrowLabel(last))}
             </>
           ) : (
-            <span className="text-muted">Transitions: New to Ready (admit), Ready to Running (dispatch), Running to Ready (interrupt), Running to Waiting (I/O), Waiting to Ready (I/O done), Running to Terminated (exit).</span>
+            <span className="text-muted">{t.transitionsHelp}</span>
           )}
         </p>
       </div>
@@ -263,7 +250,7 @@ function StateDiagram({
                 />
               )}
               <text x={a.lx} y={a.ly} textAnchor="middle" className="fill-current text-[18px] font-semibold">
-                {a.label}
+                {arrowLabel(a)}
               </text>
             </g>
           )
@@ -329,10 +316,13 @@ function Actions({
   setProgram: (p: string) => void
 }) {
   const r = running(os)
-  const btn = (a: ProcAction, label: string, hint: string, variant: 'primary' | 'secondary' = 'secondary') => {
+  const t = useText(processesText)
+  const b = t.buttons
+  const fix = useBidi()
+  const btn = (a: ProcAction, [label, hint]: [string, string], variant: 'primary' | 'secondary' = 'secondary') => {
     const reason = blockedReason(os, a)
     return (
-      <Button key={label} variant={variant} size="sm" onClick={() => act(a)} disabled={reason !== null} title={reason ?? hint}>
+      <Button key={a.type} variant={variant} size="sm" onClick={() => act(a)} disabled={reason !== null} title={reason ? t.msg(reason) : hint}>
         {label}
       </Button>
     )
@@ -341,41 +331,41 @@ function Actions({
   return (
     <>
       <div className="rounded-xl border border-line bg-surface-2 p-3">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Selected: {sel ? `PID ${sel.pid} (${sel.state})` : 'none'}</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.selected}: {sel ? fix(`PID ${sel.pid} (${sel.state})`) : t.none}</div>
         <div className="flex flex-wrap gap-2">
-          {sel?.state === 'new' && btn({ type: 'admit', pid: sel.pid }, 'Admit', 'Move into the ready queue', 'primary')}
-          {sel?.state === 'ready' && btn({ type: 'dispatch', pid: sel.pid }, 'Dispatch to CPU', 'Give it the CPU', 'primary')}
-          {sel?.waitingFor === 'io' && btn({ type: 'ioDone', pid: sel.pid }, 'Complete I/O', 'Device interrupt: data is ready', 'primary')}
-          {sel?.waitingFor === 'child' && <p className="text-sm text-muted">Blocked in wait(). Run one of its children and call exit().</p>}
-          {sel?.state === 'terminated' && <p className="text-sm text-muted">Zombie: dispatch its parent and call wait() to reap it.</p>}
-          {sel?.state === 'running' && <p className="text-sm text-muted">This process owns the CPU. Use the system calls below.</p>}
+          {sel?.state === 'new' && btn({ type: 'admit', pid: sel.pid }, b.admit, 'primary')}
+          {sel?.state === 'ready' && btn({ type: 'dispatch', pid: sel.pid }, b.dispatch, 'primary')}
+          {sel?.waitingFor === 'io' && btn({ type: 'ioDone', pid: sel.pid }, b.ioDone, 'primary')}
+          {sel?.waitingFor === 'child' && <p className="text-sm text-muted">{t.inWait}</p>}
+          {sel?.state === 'terminated' && <p className="text-sm text-muted">{t.zombieNote}</p>}
+          {sel?.state === 'running' && <p className="text-sm text-muted">{t.runningNote}</p>}
         </div>
       </div>
 
       <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-3">
         <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
-          Running process: {r ? `PID ${r.pid} (${r.program})` : 'none (CPU idle)'}
+          {t.running}: {r ? fix(`PID ${r.pid} (${r.program})`) : t.idle}
         </div>
         <div className="flex flex-wrap gap-2">
-          {btn({ type: 'tick' }, 'Run instruction', 'Advance the program counter')}
-          {btn({ type: 'timeout' }, 'Timer interrupt', 'Preempt back to Ready')}
-          {btn({ type: 'io' }, 'read() from disk', 'Block on I/O')}
-          {btn({ type: 'fork' }, 'fork()', 'Duplicate this process')}
-          {btn({ type: 'exec', program }, `exec("${program}")`, 'Replace the program')}
-          {btn({ type: 'wait' }, 'wait()', 'Wait for a child to exit')}
-          {btn({ type: 'exit' }, 'exit()', 'Terminate this process')}
+          {btn({ type: 'tick' }, b.tick)}
+          {btn({ type: 'timeout' }, b.timeout)}
+          {btn({ type: 'io' }, b.io)}
+          {btn({ type: 'fork' }, [fix('fork()'), b.fork])}
+          {btn({ type: 'exec', program }, [fix(`exec("${program}")`), b.exec])}
+          {btn({ type: 'wait' }, [fix('wait()'), b.wait])}
+          {btn({ type: 'exit' }, [fix('exit()'), b.exit])}
         </div>
       </div>
 
       <div className="rounded-xl border border-line bg-surface-2 p-3">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Launch a program</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.launch}</div>
         <div className="flex flex-wrap items-center gap-2">
-          <select aria-label="Program" value={program} onChange={(e) => setProgram(e.target.value)} className={inputClass}>
+          <select aria-label={t.program} value={program} onChange={(e) => setProgram(e.target.value)} className={inputClass}>
             {programs.map((p) => (
               <option key={p}>{p}</option>
             ))}
           </select>
-          {btn({ type: 'create', program }, 'Create process', 'Allocate a new PCB in the New state')}
+          {btn({ type: 'create', program }, b.create)}
         </div>
       </div>
     </>
@@ -383,16 +373,19 @@ function Actions({
 }
 
 function PcbView({ pcb }: { pcb: PCB }) {
-  const rows: [string, string][] = [
-    ['PID', String(pcb.pid)],
-    ['Parent PID', pcb.ppid === INIT_PID ? '1 (init)' : String(pcb.ppid)],
-    ['State', pcb.state + (pcb.state === 'terminated' ? ' (zombie)' : '')],
-    ['Program', pcb.program],
-    ['Program counter', `0x${pcb.pc.toString(16)}`],
-    ['CPU time used', `${pcb.cpuTime} ticks`],
-    ['Blocked on', pcb.waitingFor ?? '-'],
-    ['Open files', pcb.openFiles.join(', ') || '(closed)'],
-  ]
+  const t = useText(processesText)
+  const fix = useBidi()
+  const values = [
+    String(pcb.pid),
+    pcb.ppid === INIT_PID ? '1 (init)' : String(pcb.ppid),
+    pcb.state + (pcb.state === 'terminated' ? ' (zombie)' : ''),
+    pcb.program,
+    `0x${pcb.pc.toString(16)}`,
+    `${pcb.cpuTime} ticks`,
+    pcb.waitingFor ?? '-',
+    pcb.openFiles.join(', ') || t.closed,
+  ].map(fix)
+  const rows = t.pcbRows.map((label, i) => [label, values[i]] as const)
   return (
     <motion.dl key={pcb.pid} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 font-mono text-sm">
       {rows.map(([k, v]) => (

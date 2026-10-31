@@ -5,13 +5,11 @@ import { Quiz } from '../components/Quiz'
 import { Button, Card, Segmented } from '../components/ui'
 import { cx, shuffle } from '../lib/utils'
 import { generators } from '../data/generators'
-import { questionTopic, quizzes } from '../data/quizzes'
+import { questionTopic, useQuizzes } from '../data/quizzes'
 import { useTopics } from '../data/topics'
 import { useUi } from '../i18n/ui'
 import { countCorrect, mistakes, useProgress } from '../store/progress'
 import type { Question } from '../types'
-
-const questionById = new Map(Object.values(quizzes).flatMap((qs) => qs.map((q) => [q.id, q] as const)))
 
 type Session = { key: number; mode: 'quiz' | 'review'; questions: Question[] } | { key: number; mode: 'practice'; topics: string[] }
 
@@ -21,6 +19,8 @@ export default function QuizHub() {
   const [selected, setSelected] = useState<string[]>(() => topics.map((x) => x.id))
   const [count, setCount] = useState<'5' | '10' | 'all'>('10')
   const [session, setSession] = useState<Session | null>(null)
+  const quizzes = useQuizzes()
+  const questionById = new Map(Object.values(quizzes).flatMap((qs) => qs.map((q) => [q.id, q] as const)))
   const answers = useProgress((s) => s.answers)
   const practice = useProgress((s) => s.practice)
   const resetTopic = useProgress((s) => s.resetTopic)

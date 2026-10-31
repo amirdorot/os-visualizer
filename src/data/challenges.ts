@@ -1,3 +1,7 @@
+import { useMemo } from 'react'
+import { useLocale } from '../i18n'
+import { localizeChallenges, type Translations } from '../i18n/content'
+import { processesChallengeText } from '../topics/processes/content'
 import type { ChallengeMeta } from '../types'
 
 export const challenges: Record<string, ChallengeMeta[]> = {
@@ -51,4 +55,13 @@ export const challenges: Record<string, ChallengeMeta[]> = {
 
 export function challengeIds(topic: string) {
   return (challenges[topic] ?? []).map((c) => c.id)
+}
+
+export const challengeText: Record<string, Translations<Record<string, [string, string]>>> = {
+  processes: processesChallengeText,
+}
+
+export function useChallenges(topic: string): ChallengeMeta[] {
+  const locale = useLocale()
+  return useMemo(() => localizeChallenges(challenges[topic] ?? [], locale, challengeText[topic]), [topic, locale])
 }

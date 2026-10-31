@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { generate } from '../data/generators'
 import { useTopics } from '../data/topics'
+import { useLocale } from '../i18n'
 import { useUi } from '../i18n/ui'
 import { useProgress } from '../store/progress'
 import { Icon } from './Icon'
@@ -8,10 +9,18 @@ import { QuestionCard } from './Quiz'
 import { Button } from './ui'
 
 /** Endless stream of freshly generated questions; answers are computed by the same engines that drive the simulations. */
-export function Practice({ topics, title, showTopic = false }: { topics: string[]; title?: string; showTopic?: boolean }) {
+type PracticeProps = { topics: string[]; title?: string; showTopic?: boolean }
+
+export function Practice(props: PracticeProps) {
+  const locale = useLocale()
+  return <PracticeSession key={locale} {...props} />
+}
+
+function PracticeSession({ topics, title, showTopic = false }: PracticeProps) {
   const t = useUi().practice
   const allTopics = useTopics()
-  const [current, setCurrent] = useState(() => generate(topics))
+  const locale = useLocale()
+  const [current, setCurrent] = useState(() => generate(topics, Math.random, locale))
   const [result, setResult] = useState<boolean | undefined>(undefined)
   const [streak, setStreak] = useState(0)
   const [session, setSession] = useState({ answered: 0, correct: 0 })
@@ -27,7 +36,7 @@ export function Practice({ topics, title, showTopic = false }: { topics: string[
   }
 
   const next = () => {
-    setCurrent(generate(topics))
+    setCurrent(generate(topics, Math.random, locale))
     setResult(undefined)
   }
 

@@ -21,11 +21,36 @@ export interface OSStats {
   ioCompleted: number
 }
 
+/** What happened, as data; the page turns it into a sentence in the reader's language. */
+export type ProcMsg =
+  | { k: 'boot' }
+  | { k: 'tableFull' }
+  | { k: 'onlyNewAdmit' }
+  | { k: 'cpuBusy' }
+  | { k: 'onlyReadyDispatch' }
+  | { k: 'notWaitingIo' }
+  | { k: 'onlyRunningFork' }
+  | { k: 'noneRunning' }
+  | { k: 'created'; pid: number; program: string }
+  | { k: 'admitted'; pid: number }
+  | { k: 'dispatched'; pid: number }
+  | { k: 'tick'; pid: number; pc: number }
+  | { k: 'timeout'; pid: number }
+  | { k: 'io'; pid: number }
+  | { k: 'ioDone'; pid: number }
+  | { k: 'fork'; pid: number; child: number; program: string }
+  | { k: 'exec'; pid: number; program: string }
+  | { k: 'waitNoChildren'; pid: number }
+  | { k: 'reaped'; pid: number; child: number }
+  | { k: 'waitBlocks'; pid: number }
+  | { k: 'exitInit'; pid: number; orphans: number[] }
+  | { k: 'exitWoken'; pid: number; parent: number; orphans: number[] }
+  | { k: 'exitZombie'; pid: number; parent: number; orphans: number[] }
+
 export interface OSState {
   procs: PCB[]
   nextPid: number
-  log: { text: string; tone: 'info' | 'good' | 'bad' }[]
-  lastEvent: string | null
+  log: { msg: ProcMsg; tone: 'info' | 'good' | 'bad' }[]
   stats: OSStats
 }
 
@@ -58,8 +83,7 @@ export function initialOS(): OSState {
       { pid: 100, ppid: INIT_PID, state: 'ready', program: 'bash', pc: 0x1000, cpuTime: 0, waitingFor: null, openFiles: ['stdin', 'stdout', 'stderr'] },
     ],
     nextPid: 101,
-    log: [{ text: 'System booted. init (PID 1) started bash (PID 100), which is ready to run.', tone: 'info' }],
-    lastEvent: null,
+    log: [{ msg: { k: 'boot' }, tone: 'info' }],
     stats: { forks: 0, execs: 0, zombies: 0, reaped: 0, orphans: 0, ioCompleted: 0 },
   }
 }
@@ -73,34 +97,34 @@ export function running(s: OSState): PCB | undefined {
 }
 
 /** Returns why an action is not allowed right now, or null if it is. */
-export function blockedReason(s: OSState, a: ProcAction): string | null {
+export function blockedReason(s: OSState, a: ProcAction): ProcMsg | null {
   const r = running(s)
   const find = (pid: number) => s.procs.find((p) => p.pid === pid)
   switch (a.type) {
     case 'create':
-      return s.procs.length >= 9 ? 'Process table is full in this demo.' : null
+      return s.procs.length >= 9 ? { k: 'tableFull' } : null
     case 'admit':
-      return find(a.pid)?.state === 'new' ? null : 'Only a New process can be admitted.'
+      return find(a.pid)?.state === 'new' ? null : { k: 'onlyNewAdmit' }
     case 'dispatch':
-      if (r) return 'The CPU is busy. Preempt or block the running process first.'
-      return find(a.pid)?.state === 'ready' ? null : 'Only a Ready process can be dispatched.'
+      if (r) return { k: 'cpuBusy' }
+      return find(a.pid)?.state === 'ready' ? null : { k: 'onlyReadyDispatch' }
     case 'ioDone':
-      return find(a.pid)?.waitingFor === 'io' ? null : 'That process is not waiting for I/O.'
+      return find(a.pid)?.waitingFor === 'io' ? null : { k: 'notWaitingIo' }
     case 'fork':
-      if (s.procs.length >= 9) return 'Process table is full in this demo.'
-      return r ? null : 'Only a running process can call fork().'
+      if (s.procs.length >= 9) return { k: 'tableFull' }
+      return r ? null : { k: 'onlyRunningFork' }
     case 'tick':
     case 'timeout':
     case 'io':
     case 'exec':
     case 'wait':
     case 'exit':
-      return r ? null : 'No process is running.'
+      return r ? null : { k: 'noneRunning' }
   }
 }
 
-function log(s: OSState, text: string, tone: 'info' | 'good' | 'bad' = 'info'): OSState {
-  return { ...s, log: [{ text, tone }, ...s.log].slice(0, 40), lastEvent: text }
+function log(s: OSState, msg: ProcMsg, tone: 'info' | 'good' | 'bad' = 'info'): OSState {
+  return { ...s, log: [{ msg, tone }, ...s.log].slice(0, 40) }
 }
 
 function update(s: OSState, pid: number, patch: Partial<PCB>): OSState {
@@ -119,42 +143,42 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
   switch (a.type) {
     case 'create': {
       const pcb: PCB = { pid: s.nextPid, ppid: INIT_PID, state: 'new', program: a.program, pc: 0x1000, cpuTime: 0, waitingFor: null, openFiles: ['stdin', 'stdout', 'stderr'] }
-      return log({ ...s, procs: [...s.procs, pcb], nextPid: s.nextPid + 1 }, `Created PID ${pcb.pid} (${a.program}). The kernel allocated a PCB; the process is New.`)
+      return log({ ...s, procs: [...s.procs, pcb], nextPid: s.nextPid + 1 }, { k: 'created', pid: pcb.pid, program: a.program })
     }
     case 'admit':
-      return log(update(s, a.pid, { state: 'ready' }), `PID ${a.pid} admitted to the ready queue.`)
+      return log(update(s, a.pid, { state: 'ready' }), { k: 'admitted', pid: a.pid })
     case 'dispatch':
-      return log(update(s, a.pid, { state: 'running' }), `Scheduler dispatched PID ${a.pid}: its saved registers are loaded and it is now Running.`, 'good')
+      return log(update(s, a.pid, { state: 'running' }), { k: 'dispatched', pid: a.pid }, 'good')
     case 'tick':
-      return log(update(s, r.pid, { pc: r.pc + 4, cpuTime: r.cpuTime + 1 }), `PID ${r.pid} executed an instruction (PC is now 0x${(r.pc + 4).toString(16)}).`)
+      return log(update(s, r.pid, { pc: r.pc + 4, cpuTime: r.cpuTime + 1 }), { k: 'tick', pid: r.pid, pc: r.pc + 4 })
     case 'timeout':
-      return log(update(s, r.pid, { state: 'ready' }), `Timer interrupt: PID ${r.pid} is preempted and goes back to Ready.`)
+      return log(update(s, r.pid, { state: 'ready' }), { k: 'timeout', pid: r.pid })
     case 'io':
-      return log(update(s, r.pid, { state: 'waiting', waitingFor: 'io' }), `PID ${r.pid} requested disk I/O and is now Waiting (blocked). The CPU is free.`)
+      return log(update(s, r.pid, { state: 'waiting', waitingFor: 'io' }), { k: 'io', pid: r.pid })
     case 'ioDone':
-      return log(bump(update(s, a.pid, { state: 'ready', waitingFor: null }), 'ioCompleted'), `I/O completed: an interrupt moves PID ${a.pid} back to Ready.`, 'good')
+      return log(bump(update(s, a.pid, { state: 'ready', waitingFor: null }), 'ioCompleted'), { k: 'ioDone', pid: a.pid }, 'good')
     case 'fork': {
       const child: PCB = { ...r, pid: s.nextPid, ppid: r.pid, state: 'ready', cpuTime: 0, waitingFor: null }
       const next = bump({ ...s, procs: [...s.procs, child], nextPid: s.nextPid + 1 }, 'forks')
       return log(
         next,
-        `PID ${r.pid} called fork(). Child PID ${child.pid} is a copy (same program "${r.program}", same PC, same open files). fork() returned ${child.pid} to the parent and 0 to the child.`,
+        { k: 'fork', pid: r.pid, child: child.pid, program: r.program },
         'good',
       )
     }
     case 'exec':
       return log(
         bump(update(s, r.pid, { program: a.program, pc: 0x1000 }), 'execs'),
-        `PID ${r.pid} called exec("${a.program}"). Its code, data and stack were replaced; the PID and open files stay the same.`,
+        { k: 'exec', pid: r.pid, program: a.program },
       )
     case 'wait': {
       const children = s.procs.filter((p) => p.ppid === r.pid)
-      if (children.length === 0) return log(s, `PID ${r.pid} called wait() but has no children: it returns -1 immediately.`, 'bad')
+      if (children.length === 0) return log(s, { k: 'waitNoChildren', pid: r.pid }, 'bad')
       const zombie = children.find((c) => c.state === 'terminated')
       if (zombie) {
-        return log(bump(remove(s, zombie.pid), 'reaped'), `PID ${r.pid} called wait() and reaped zombie child ${zombie.pid} immediately. Its PCB is freed.`, 'good')
+        return log(bump(remove(s, zombie.pid), 'reaped'), { k: 'reaped', pid: r.pid, child: zombie.pid }, 'good')
       }
-      return log(update(s, r.pid, { state: 'waiting', waitingFor: 'child' }), `PID ${r.pid} called wait() and blocks until one of its children exits.`)
+      return log(update(s, r.pid, { state: 'waiting', waitingFor: 'child' }), { k: 'waitBlocks', pid: r.pid })
     }
     case 'exit': {
       const orphans = s.procs.filter((p) => p.ppid === r.pid)
@@ -162,17 +186,17 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
       for (const o of orphans) next = update(next, o.pid, { ppid: INIT_PID })
       for (const o of orphans.filter((o) => o.state === 'terminated')) next = remove(next, o.pid)
       const parent = s.procs.find((p) => p.pid === r.ppid)
-      const orphanNote = orphans.length ? ` Its children ${orphans.map((o) => o.pid).join(', ')} are orphans and are re-parented to init.` : ''
+      const orphanPids = orphans.map((o) => o.pid)
 
       if (r.ppid === INIT_PID || !parent) {
-        return log(remove(next, r.pid), `PID ${r.pid} exited. init reaps it right away.${orphanNote}`)
+        return log(remove(next, r.pid), { k: 'exitInit', pid: r.pid, orphans: orphanPids })
       }
       if (parent.state === 'waiting' && parent.waitingFor === 'child') {
         next = update(remove(next, r.pid), parent.pid, { state: 'ready', waitingFor: null })
-        return log(next, `PID ${r.pid} exited. Its parent ${parent.pid} was waiting, so it collects the exit status and becomes Ready.${orphanNote}`, 'good')
+        return log(next, { k: 'exitWoken', pid: r.pid, parent: parent.pid, orphans: orphanPids }, 'good')
       }
       next = bump(update(next, r.pid, { state: 'terminated', openFiles: [] }), 'zombies')
-      return log(next, `PID ${r.pid} exited, but parent ${parent.pid} has not called wait(). It is now a zombie.${orphanNote}`, 'bad')
+      return log(next, { k: 'exitZombie', pid: r.pid, parent: parent.pid, orphans: orphanPids }, 'bad')
     }
   }
 }

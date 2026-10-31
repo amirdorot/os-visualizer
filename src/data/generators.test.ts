@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { nextRandom } from '../engines/threads'
+import { locales } from '../i18n'
 import { generate, generators, type Rng } from './generators'
 
 function seeded(seed: number): Rng {
@@ -13,11 +14,11 @@ function seeded(seed: number): Rng {
 
 describe('question generators', () => {
   for (const [topic, gens] of Object.entries(generators)) {
-    it(`${topic}: every generator produces valid questions`, () => {
+    it(`${topic}: every generator produces valid questions in every language`, () => {
       const rng = seeded(topic.length * 997)
       for (const gen of gens) {
         for (let i = 0; i < 200; i++) {
-          const q = gen(rng)
+          const q = gen(rng, locales[i % locales.length].id)
           expect(q.id).toMatch(/^gen-/)
           expect(q.prompt.length).toBeGreaterThan(10)
           expect(q.explanation.length).toBeGreaterThan(10)

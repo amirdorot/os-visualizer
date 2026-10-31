@@ -4,6 +4,8 @@ import { pageReplacement, translate, type ReplaceAlgo } from '../engines/memory'
 import { simulate, type Job, type SchedAlgo } from '../engines/scheduler'
 import { diskSchedule, type DiskAlgo } from '../engines/storage'
 import { initialRace, opText, program, stepThread } from '../engines/threads'
+import { pick, type Locale } from '../i18n'
+import { processesGenText } from '../topics/processes/content'
 import type { Question } from '../types'
 
 export type Rng = () => number
@@ -87,45 +89,50 @@ function schedCompletion(rng: Rng): Question {
 
 // ---------- Processes ----------
 
-function forkCount(rng: Rng): Question {
+function forkCount(rng: Rng, locale: Locale): Question {
+  const t = pick(processesGenText, locale)
   const n = int(rng, 2, 4)
+  const counts = Array.from({ length: n }, (_, i) => 2 ** (i + 1))
   if (rng() < 0.5) {
     return {
       kind: 'predict',
       id: uid(rng, 'proc-fork'),
-      prompt: 'How many processes exist in total (including the original) when this finishes?',
+      prompt: t.forkPrompt,
       scenario: `for (int i = 0; i < ${n}; i++)\n  fork();`,
       answer: 2 ** n,
-      unit: 'processes',
-      explanation: `Every fork() doubles the number of processes running the rest of the loop: 1${Array.from({ length: n }, (_, i) => ` -> ${2 ** (i + 1)}`).join('')}.`,
+      unit: t.forkUnit,
+      explanation: t.forkExplain(counts),
     }
   }
   const total = 2 ** (n + 1) - 2
   return {
     kind: 'predict',
     id: uid(rng, 'proc-print'),
-    prompt: 'How many times is "hi" printed?',
+    prompt: t.printPrompt,
     scenario: `for (int i = 0; i < ${n}; i++) {\n  fork();\n  printf("hi\\n");\n}`,
     answer: total,
-    unit: 'times',
-    explanation: `After the 1st fork 2 processes print, after the 2nd 4 print, and so on: ${Array.from({ length: n }, (_, i) => 2 ** (i + 1)).join(' + ')} = ${total}.`,
+    unit: t.printUnit,
+    explanation: t.printExplain(counts, total),
   }
 }
 
 const transitions = [
-  { from: 'Running', event: 'a timer interrupt fires', to: 'Ready', why: 'It is preempted but still able to run, so it goes back to the ready queue.' },
-  { from: 'Running', event: 'it calls read() on a file that is not cached', to: 'Waiting', why: 'It must wait for the disk, so it blocks.' },
-  { from: 'Waiting', event: 'the disk interrupt says its data has arrived', to: 'Ready', why: 'It can run again, but must wait for the scheduler. It never jumps straight to Running.' },
-  { from: 'Ready', event: 'the scheduler picks it', to: 'Running', why: 'Dispatching loads its registers onto the CPU.' },
-  { from: 'Running', event: 'it calls exit()', to: 'Terminated', why: 'It is finished; its PCB stays until the parent calls wait().' },
-  { from: 'New', event: 'the OS admits it', to: 'Ready', why: 'Its PCB and memory are set up and it joins the ready queue.' },
-  { from: 'Running', event: 'it calls wait() and its child is still running', to: 'Waiting', why: 'It blocks until a child exits.' },
+  { from: 'Running', to: 'Ready' },
+  { from: 'Running', to: 'Waiting' },
+  { from: 'Waiting', to: 'Ready' },
+  { from: 'Ready', to: 'Running' },
+  { from: 'Running', to: 'Terminated' },
+  { from: 'New', to: 'Ready' },
+  { from: 'Running', to: 'Waiting' },
 ]
 
-function stateTransition(rng: Rng): Question {
-  const t = choice(rng, transitions)
+function stateTransition(rng: Rng, locale: Locale): Question {
+  const text = pick(processesGenText, locale)
+  const i = Math.floor(rng() * transitions.length)
+  const t = transitions[i]
+  const [event, why] = text.transitions[i]
   const others = ['New', 'Ready', 'Running', 'Waiting', 'Terminated'].filter((s) => s !== t.to && s !== t.from)
-  return mcq(rng, 'proc-state', `A process is ${t.from} and ${t.event}. Which state does it move to?`, t.to, others.slice(0, 3), t.why)
+  return mcq(rng, 'proc-state', text.statePrompt(t.from, event), t.to, others.slice(0, 3), why)
 }
 
 // ---------- Threads ----------
@@ -338,7 +345,8 @@ function bankerSafe(rng: Rng): Question {
   )
 }
 
-export const generators: Record<string, ((rng: Rng) => Question)[]> = {
+/** Generators take the language for their text; topics that are not translated yet ignore it. */
+export const generators: Record<string, ((rng: Rng, locale: Locale) => Question)[]> = {
   processes: [forkCount, stateTransition],
   threads: [interleaving],
   sync: [semaphoreTrace],
@@ -349,8 +357,8 @@ export const generators: Record<string, ((rng: Rng) => Question)[]> = {
   syscalls: [syscallOrNot],
 }
 
-export function generate(topics: string[], rng: Rng = Math.random): { topic: string; question: Question } {
+export function generate(topics: string[], rng: Rng = Math.random, locale: Locale = 'en'): { topic: string; question: Question } {
   const available = topics.filter((t) => generators[t]?.length)
   const topic = choice(rng, available)
-  return { topic, question: choice(rng, generators[topic])(rng) }
+  return { topic, question: choice(rng, generators[topic])(rng, locale) }
 }
