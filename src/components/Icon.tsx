@@ -28,6 +28,10 @@ const paths: Record<string, string> = {
   info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7h.01',
   chat: 'M4 5h16v11H8l-4 4z',
   chevron: 'M6 9l6 6 6-6',
+  link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+  present: 'M3 4h18v12H3zM12 16v4M8 20h8',
+  chevronLeft: 'M15 6l-6 6 6 6',
+  chevronRight: 'M9 6l6 6-6 6',
 }
 
 export function Icon({ name, className = 'size-5' }: { name: string; className?: string }) {

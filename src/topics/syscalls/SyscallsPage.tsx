@@ -9,6 +9,7 @@ import { layers, syscallSteps, type SyscallName } from '../../engines/syscalls'
 import { Challenges } from '../../components/Challenges'
 import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState } from '../../hooks/useUrlState'
 import { syscallsQuiz } from './quiz'
 
 export default function SyscallsPage() {
@@ -45,7 +46,7 @@ export default function SyscallsPage() {
 }
 
 function SyscallWalkthrough() {
-  const [name, setName] = useState<SyscallName>('read')
+  const [name, setName] = useUrlState<SyscallName>('call', 'read', codecs.oneOf(['read', 'write', 'getpid']))
   const steps = useMemo(() => syscallSteps(name), [name])
   const sim = useSimulation({ initial: () => 0, step: (i) => i + 1, isDone: (i) => i >= steps.length - 1 })
   const { reset } = sim
@@ -55,6 +56,8 @@ function SyscallWalkthrough() {
 
   return (
     <Card
+      id="walkthrough"
+      share
       title="Follow a system call"
       subtitle="Step through and watch the call travel down through the layers, across the user/kernel boundary, and back."
       actions={

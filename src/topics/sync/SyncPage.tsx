@@ -9,6 +9,7 @@ import { challenges } from '../../data/challenges'
 import { jobColors } from '../../data/palette'
 import { currentOp, initialSync, isBlocked, opLabel, program, stepActor, stepRandomSync, type SemName, type SyncState } from '../../engines/sync'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState } from '../../hooks/useUrlState'
 import { cx } from '../../lib/utils'
 import { syncQuiz } from './quiz'
 
@@ -156,11 +157,11 @@ const semInfo: Record<SemName, string> = {
 }
 
 function BufferLab() {
-  const [mode, setMode] = useState<'safe' | 'unsafe'>('safe')
-  const [capacity, setCapacity] = useState(3)
-  const [producers, setProducers] = useState(1)
-  const [consumers, setConsumers] = useState(1)
-  const [seed, setSeed] = useState(11)
+  const [mode, setMode] = useUrlState<'safe' | 'unsafe'>('version', 'safe', codecs.oneOf(['safe', 'unsafe']))
+  const [capacity, setCapacity] = useUrlState('slots', 3, codecs.int(2, 6))
+  const [producers, setProducers] = useUrlState('producers', 1, codecs.int(1, 2))
+  const [consumers, setConsumers] = useUrlState('consumers', 1, codecs.int(1, 2))
+  const [seed, setSeed] = useUrlState('seed', 11, codecs.int(0, 1e6))
   const fresh = () => initialSync({ safe: mode === 'safe', capacity, producers, consumers, seed })
 
   const sim = useSimulation<SyncState>({
@@ -184,6 +185,8 @@ function BufferLab() {
 
   return (
     <Card
+      id="buffer-lab"
+      share
       title="Bounded buffer lab"
       subtitle="Producers put items into a shared buffer and consumers take them out. Press Play for a random schedule, or run each thread yourself."
     >

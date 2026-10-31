@@ -103,15 +103,29 @@ export function Layout() {
   }, [theme])
 
   useEffect(() => {
-    window.scrollTo({ top: 0 })
+    const id = window.location.hash.slice(1)
+    if (!id) {
+      window.scrollTo({ top: 0 })
+      return
+    }
+    // Topic pages load lazily, so wait for the target section to appear.
+    let tries = 0
+    const timer = window.setInterval(() => {
+      const el = document.getElementById(id)
+      if (el || ++tries > 40) {
+        window.clearInterval(timer)
+        el?.scrollIntoView({ block: 'start' })
+      }
+    }, 50)
+    return () => window.clearInterval(timer)
   }, [location.pathname])
 
   return (
     <div className="flex min-h-screen flex-col">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:p-2">
+      <a href="#main" data-chrome className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:p-2">
         Skip to content
       </a>
-      <header className="sticky top-0 z-40 border-b border-line bg-page/85 backdrop-blur">
+      <header data-chrome className="sticky top-0 z-40 border-b border-line bg-page/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-2 sm:px-6">
           <NavLink to="/" className="mr-2 flex items-center gap-2 font-bold tracking-tight">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" className="size-7" />
@@ -174,7 +188,7 @@ export function Layout() {
       <main id="main" className="flex-1">
         <Outlet />
       </main>
-      <footer className="border-t border-line py-6 text-sm text-muted">
+      <footer data-chrome className="border-t border-line py-6 text-sm text-muted">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 sm:px-6">
           <span>OS Visualizer: learn operating systems by playing with them.</span>
           <span className="flex flex-wrap gap-4">

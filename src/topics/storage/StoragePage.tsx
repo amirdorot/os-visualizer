@@ -24,6 +24,7 @@ import {
 import { Challenges } from '../../components/Challenges'
 import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState } from '../../hooks/useUrlState'
 
 const pick = (...ids: string[]) => challenges.storage.filter((c) => ids.includes(c.id))
 import { storageQuiz } from './quiz'
@@ -81,8 +82,8 @@ function inodeColor(id: number) {
 }
 
 function FileSystemLab() {
-  const [method, setMethod] = useState<AllocMethod>('contiguous')
-  const [fs, setFs] = useState(() => seed('contiguous'))
+  const [method, setMethod] = useUrlState<AllocMethod>('allocation', 'contiguous', codecs.oneOf(['contiguous', 'linked', 'indexed']))
+  const [fs, setFs] = useState(() => seed(method))
   const [selected, setSelected] = useState<number>(5)
   const [cwd, setCwd] = useState<number>(ROOT)
   const [name, setName] = useState('report.pdf')
@@ -114,6 +115,8 @@ function FileSystemLab() {
 
   return (
     <Card
+      id="explorer"
+      share
       title="File system explorer"
       subtitle="Create, grow and delete files and watch the inodes, directory tree, disk blocks and bitmap change together."
       actions={
@@ -397,10 +400,10 @@ function parseList(s: string) {
 }
 
 function DiskSchedulingLab() {
-  const [reqText, setReqText] = useState('98, 183, 37, 122, 14, 124, 65, 67')
-  const [head, setHead] = useState(53)
-  const [algo, setAlgo] = useState<DiskAlgo>('FCFS')
-  const [direction, setDirection] = useState<'up' | 'down'>('up')
+  const [reqText, setReqText] = useUrlState('requests', '98, 183, 37, 122, 14, 124, 65, 67', codecs.text(120))
+  const [head, setHead] = useUrlState('head', 53, codecs.int(0, MAX_CYL))
+  const [algo, setAlgo] = useUrlState<DiskAlgo>('disk', 'FCFS', codecs.oneOf(['FCFS', 'SSTF', 'SCAN', 'CSCAN']))
+  const [direction, setDirection] = useUrlState<'up' | 'down'>('direction', 'up', codecs.oneOf(['up', 'down']))
   const requests = useMemo(() => parseList(reqText), [reqText])
   const plan = useMemo(() => diskSchedule(requests, head, algo, MAX_CYL, direction), [requests, head, algo, direction])
   const compare = useMemo(
@@ -424,6 +427,8 @@ function DiskSchedulingLab() {
 
   return (
     <Card
+      id="disk"
+      share
       title="Disk scheduling"
       subtitle="The disk head must visit every pending cylinder. Different orders mean very different amounts of head movement."
       actions={

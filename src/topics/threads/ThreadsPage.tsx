@@ -20,6 +20,7 @@ import {
 import { Challenges } from '../../components/Challenges'
 import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState } from '../../hooks/useUrlState'
 import { threadsQuiz } from './quiz'
 
 const threadColor = (id: number) => jobColors[(id + 3) % jobColors.length]
@@ -139,10 +140,10 @@ function AddressSpace() {
 }
 
 function RaceLab() {
-  const [threads, setThreads] = useState(2)
-  const [iterations, setIterations] = useState(3)
-  const [mutex, setMutex] = useState<'off' | 'on'>('off')
-  const [seed, setSeed] = useState(7)
+  const [threads, setThreads] = useUrlState('threads', 2, codecs.int(2, 4))
+  const [iterations, setIterations] = useUrlState('increments', 3, codecs.int(1, 5))
+  const [mutex, setMutex] = useUrlState<'off' | 'on'>('mutex', 'off', codecs.oneOf(['off', 'on']))
+  const [seed, setSeed] = useUrlState('seed', 7, codecs.int(0, 1e6))
   const fresh = () => initialRace(threads, iterations, mutex === 'on', seed)
 
   const sim = useSimulation<RaceState>({
@@ -162,6 +163,8 @@ function RaceLab() {
 
   return (
     <Card
+      id="race-lab"
+      share
       title="Race condition lab"
       subtitle="Each thread runs counter++ several times. Let the scheduler interleave randomly, or play scheduler yourself by clicking a thread's Run button."
     >

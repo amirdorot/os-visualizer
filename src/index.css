@@ -46,6 +46,15 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Presentation mode: larger type for projectors, no site navigation. */
+html.presenting {
+  font-size: 118%;
+}
+
+html.presenting [data-chrome] {
+  display: none;
+}
+
 :focus-visible {
   outline: 2px solid #6366f1;
   outline-offset: 2px;

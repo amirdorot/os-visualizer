@@ -1,13 +1,19 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cx } from '../lib/utils'
+import { ShareButton } from './ShareButton'
 
 export function Card({
+  id,
+  share,
   title,
   subtitle,
   actions,
   children,
   className,
 }: {
+  /** Anchor id; with `share`, a Share button links straight to this card. */
+  id?: string
+  share?: boolean
   title?: ReactNode
   subtitle?: ReactNode
   actions?: ReactNode
@@ -15,14 +21,19 @@ export function Card({
   className?: string
 }) {
   return (
-    <section className={cx('rounded-2xl border border-line bg-surface p-4 shadow-sm sm:p-5', className)}>
-      {(title || actions) && (
+    <section id={id} className={cx('scroll-mt-20 rounded-2xl border border-line bg-surface p-4 shadow-sm sm:p-5', className)}>
+      {(title || actions || share) && (
         <header className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             {title && <h3 className="text-base font-semibold">{title}</h3>}
             {subtitle && <p className="mt-0.5 text-sm text-muted">{subtitle}</p>}
           </div>
-          {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+          {(actions || share) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {actions}
+              {share && <ShareButton target={id} />}
+            </div>
+          )}
         </header>
       )}
       {children}

@@ -10,6 +10,7 @@ import { simulate, type Job, type SchedAlgo, type Tick } from '../../engines/sch
 import { Challenges } from '../../components/Challenges'
 import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
 import { schedulingQuiz } from './quiz'
 
 interface WorkJob extends Job {
@@ -57,10 +58,24 @@ function registers(job: Job, tick: Tick | undefined, idx: number) {
   }
 }
 
+/** Jobs as "program.arrival.burst.priority" separated by "_"; the program is an index into `pool`. */
+const jobsCodec: Codec<WorkJob[]> = {
+  format: (jobs) => jobs.map((j) => [pool.findIndex((p) => p.name === j.name), j.arrival, j.burst, j.priority].join('.')).join('_'),
+  parse: (s) => {
+    if (s === '') return []
+    const jobs = s.split('_').map((part, i) => {
+      const [p, arrival, burst, priority] = part.split('.').map(Number)
+      const ok = pool[p] && [arrival, burst, priority].every((n) => Number.isInteger(n) && n >= 0 && n <= 99) && burst > 0
+      return ok ? { id: `P${i + 1}`, name: pool[p].name, arrival, burst, priority } : null
+    })
+    return jobs.length <= 8 && jobs.every(Boolean) ? (jobs as WorkJob[]) : undefined
+  },
+}
+
 export default function SchedulingPage() {
-  const [jobs, setJobs] = useState<WorkJob[]>(defaultJobs)
-  const [algo, setAlgo] = useState<SchedAlgo>('FCFS')
-  const [quantum, setQuantum] = useState(2)
+  const [jobs, setJobs] = useUrlState('jobs', defaultJobs, jobsCodec)
+  const [algo, setAlgo] = useUrlState<SchedAlgo>('algo', 'FCFS', codecs.oneOf(['FCFS', 'SJF', 'SRTF', 'RR', 'PRIORITY']))
+  const [quantum, setQuantum] = useUrlState('quantum', 2, codecs.int(1, 6))
   const schedule = useMemo(() => simulate(jobs, algo, quantum), [jobs, algo, quantum])
   const ids = jobs.map((j) => j.id)
 
@@ -124,6 +139,8 @@ export default function SchedulingPage() {
       ]}
     >
       <Card
+        id="workload"
+        share
         title="1. Build a workload"
         subtitle="Drag programs from the pool into the workload (or click them), then tune arrival, burst and priority."
       >

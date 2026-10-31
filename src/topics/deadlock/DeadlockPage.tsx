@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Challenges } from '../../components/Challenges'
 import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Callout, Card } from '../../components/ui'
 import { challenges } from '../../data/challenges'
 import { findCycle, initialRag, need, release, request, safety, textbookExample, validate, type BankerInput, type RagState } from '../../engines/deadlock'
+import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
 import { cx, inputClass } from '../../lib/utils'
 import { deadlockQuiz } from './quiz'
 
@@ -45,6 +46,22 @@ export default function DeadlockPage() {
 
 const NODE_R = 24
 
+/** Holder of each resource, then the resource each process waits for, as 1-based numbers (0 = none): "1.2.0_0.1.0". */
+const ragCodec: Codec<RagState> = {
+  format: (s) => [s.resources.map((r) => s.processes.indexOf(s.holder[r] ?? '') + 1), s.processes.map((p) => s.resources.indexOf(s.waiting[p] ?? '') + 1)].map((g) => g.join('.')).join('_'),
+  parse: (raw) => {
+    const base = initialRag()
+    const groups = raw.split('_').map((g) => g.split('.').map(Number))
+    const [holds, waits] = groups
+    const inRange = (g: number[] | undefined) => g?.length === 3 && g.every((n) => Number.isInteger(n) && n >= 0 && n <= 3)
+    if (groups.length !== 2 || !inRange(holds) || !inRange(waits)) return undefined
+    const holder = Object.fromEntries(base.resources.map((r, i) => [r, holds[i] ? base.processes[holds[i] - 1] : null]))
+    const waiting = Object.fromEntries(base.processes.map((p, i) => [p, waits[i] ? base.resources[waits[i] - 1] : null]))
+    const valid = base.processes.every((p) => !waiting[p] || (holder[waiting[p]!] !== null && holder[waiting[p]!] !== p))
+    return valid ? { ...base, holder, waiting } : undefined
+  },
+}
+
 function positions(s: RagState) {
   const order = s.resources.flatMap((r, i) => [r, s.processes[i]]).filter(Boolean)
   return Object.fromEntries(
@@ -78,8 +95,10 @@ function Edge({ from, to, dashed, hot }: { from: { x: number; y: number }; to: {
 }
 
 function RagLab() {
-  const [history, setHistory] = useState<RagState[]>([initialRag()])
+  const [shared, setShared] = useUrlState('graph', initialRag(), ragCodec)
+  const [history, setHistory] = useState<RagState[]>(() => [shared])
   const s = history[history.length - 1]
+  useEffect(() => setShared(s), [s, setShared])
   const push = (next: RagState) => next !== s && setHistory([...history, next])
   const cycle = findCycle(s)
   const pos = positions(s)
@@ -92,6 +111,8 @@ function RagLab() {
 
   return (
     <Card
+      id="graph"
+      share
       title="Resource allocation graph"
       subtitle="Each resource (square) has one instance. Use the table to make processes (circles) request and release resources, and watch for a cycle."
       actions={
@@ -217,7 +238,15 @@ function RagLab() {
 const RES = ['A', 'B', 'C']
 
 function BankerLab() {
-  const [input, setInput] = useState<BankerInput>(textbookExample)
+  const [available, setAvailable] = useUrlState('available', [textbookExample.available], codecs.grid(1, 3, 12))
+  const [max, setMax] = useUrlState('max', textbookExample.max, codecs.grid(5, 3, 12))
+  const [allocation, setAllocation] = useUrlState('allocation', textbookExample.allocation, codecs.grid(5, 3, 12))
+  const input = useMemo<BankerInput>(() => ({ available: available[0], max, allocation }), [available, max, allocation])
+  const setInput = (next: BankerInput) => {
+    setAvailable([next.available])
+    setMax(next.max)
+    setAllocation(next.allocation)
+  }
   const [shown, setShown] = useState(0)
   const error = validate(input)
   const result = useMemo(() => safety(input), [input])
@@ -248,6 +277,8 @@ function BankerLab() {
 
   return (
     <Card
+      id="banker"
+      share
       title="Banker's algorithm: is this state safe?"
       subtitle="Edit Allocation, Max and Available, then step through the safety check. A process can finish if its Need fits in Work; when it finishes, it gives back everything it holds."
       actions={

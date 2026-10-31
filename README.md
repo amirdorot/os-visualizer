@@ -15,6 +15,8 @@ An interactive infographic that teaches how operating systems work. Every topic 
 - **Storage**: a file system explorer (inodes, directory tree, disk blocks, bitmap) with contiguous, linked and indexed allocation, plus FCFS/SSTF/SCAN/C-SCAN disk scheduling.
 - **System calls**: a step-by-step trip from user mode into the kernel and back for `read`, `write` and `getpid`.
 
+Every simulation's settings live in the page URL, so the **Share** button (or the address bar) gives a link that reopens the exact same setup. **Present** turns a topic into slides for teaching: one simulation per slide, larger text, arrow keys to move, and links that open on a specific slide.
+
 The **Quiz Hub** mixes topics, offers endless practice and a review of the questions you missed. There is also a **Glossary** and an **About** page. Progress is stored in `localStorage`.
 
 ## Development
@@ -43,3 +45,7 @@ Every push to `main` runs lint, unit tests and browser tests, then deploys to Gi
 - `src/topics/<topic>/`: each topic's page and quiz questions.
 - `src/pages/`: Home, Quiz Hub, Glossary and About.
 - `e2e/`: Playwright browser tests for desktop and phone.
+
+## License
+
+[MIT](LICENSE)

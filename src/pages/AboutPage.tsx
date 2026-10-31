@@ -54,6 +54,15 @@ export default function AboutPage() {
           </p>
         </Card>
 
+        <Card title="Teaching with it">
+          <p className="text-sm leading-relaxed text-muted">
+            Every simulation keeps its settings in the page address, so "Share setup" gives you a link that opens the same
+            workload, reference string or deadlock for your students. The "Present" button on each topic turns it into slides
+            with larger text: use the arrow keys to move between the introduction, each simulation and the quiz, and share a
+            link that opens on a particular slide.
+          </p>
+        </Card>
+
         <Card title="Your data">
           <p className="text-sm leading-relaxed text-muted">
             There are no accounts and no tracking. Quiz results, challenges and your theme are stored only in this browser's
@@ -64,7 +73,11 @@ export default function AboutPage() {
         <Card title="Feedback and contributions">
           <p className="text-sm leading-relaxed text-muted">
             Found a mistake, a confusing explanation, or have an idea for a new simulation? Every page has a "Feedback on
-            this page" link in the footer that opens a prefilled GitHub issue.
+            this page" link in the footer that opens a prefilled GitHub issue. The code is open source under the{' '}
+            <a href={`${REPO_URL}/blob/main/LICENSE`} target="_blank" rel="noreferrer" className="underline">
+              MIT license
+            </a>
+            , so you are free to reuse it, adapt it for your course or contribute improvements.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
             <a href={feedbackUrl('/about')} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500">

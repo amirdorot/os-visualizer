@@ -20,6 +20,7 @@ import {
 import { Challenges } from '../../components/Challenges'
 import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
 import { memoryQuiz } from './quiz'
 
 export default function MemoryPage() {
@@ -78,10 +79,23 @@ function bits(n: number, width: number) {
   return n.toString(2).padStart(width, '0')
 }
 
+/** Page table as frame numbers per page, "-" for pages not in RAM. */
+const tableCodec: Codec<PageTableEntry[]> = {
+  format: (t) => t.map((e) => (e.valid ? e.frame : '-')).join('.'),
+  parse: (s) => {
+    const parts = s.split('.')
+    if (parts.length !== PAGES) return undefined
+    const t = parts.map((x) => (x === '-' ? { frame: null, valid: false } : { frame: Number(x), valid: true }))
+    const frames = t.filter((e) => e.valid).map((e) => e.frame!)
+    const ok = frames.every((f) => Number.isInteger(f) && f >= 0 && f < FRAMES) && new Set(frames).size === frames.length
+    return ok ? t : undefined
+  },
+}
+
 function AddressTranslation() {
-  const [pageSize, setPageSize] = useState(256)
-  const [table, setTable] = useState(initialTable)
-  const [input, setInput] = useState('820')
+  const [pageSize, setPageSize] = useUrlState('pagesize', 256, codecs.intOneOf([256, 1024, 4096]))
+  const [table, setTable] = useUrlState('table', initialTable(), tableCodec)
+  const [input, setInput] = useUrlState('address', '820', codecs.text(12))
   const parsed = input.trim().toLowerCase().startsWith('0x') ? parseInt(input, 16) : parseInt(input, 10)
   const limit = PAGES * pageSize
   const valid = Number.isFinite(parsed) && parsed >= 0
@@ -121,6 +135,8 @@ function AddressTranslation() {
 
   return (
     <Card
+      id="translation"
+      share
       title="Virtual to physical address translation"
       subtitle="Type a virtual address (decimal or 0x hex). Click page-table rows to swap pages in or out."
       actions={
@@ -315,9 +331,9 @@ function parseRefs(s: string) {
 }
 
 function PageReplacementLab() {
-  const [refText, setRefText] = useState('7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1')
-  const [frames, setFrames] = useState(3)
-  const [algo, setAlgo] = useState<ReplaceAlgo>('FIFO')
+  const [refText, setRefText] = useUrlState('refs', '7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1', codecs.text(120))
+  const [frames, setFrames] = useUrlState('frames', 3, codecs.int(1, 6))
+  const [algo, setAlgo] = useUrlState<ReplaceAlgo>('replace', 'FIFO', codecs.oneOf(['FIFO', 'LRU', 'OPT']))
   const refs = useMemo(() => parseRefs(refText), [refText])
   const steps = useMemo(() => pageReplacement(refs, frames, algo), [refs, frames, algo])
   const totals = useMemo(
@@ -333,6 +349,8 @@ function PageReplacementLab() {
 
   return (
     <Card
+      id="replacement"
+      share
       title="Page replacement"
       subtitle="RAM has only a few frames. Step through the reference string and watch which page gets evicted on each fault."
       actions={
@@ -459,11 +477,30 @@ function initialMem(): MemBlock[] {
   ]
 }
 
+/** Memory layout as "owner.size" blocks in address order; "-" marks a hole. */
+const blocksCodec: Codec<MemBlock[]> = {
+  format: (bs) => bs.map((b) => `${b.owner ?? '-'}.${b.size}`).join('_'),
+  parse: (s) => {
+    let start = 0
+    const bs: MemBlock[] = []
+    for (const part of s.split('_')) {
+      const [owner, size] = part.split('.')
+      const n = Number(size)
+      if (!/^(-|OS|P\d{1,3})$/.test(owner) || !Number.isInteger(n) || n <= 0) return undefined
+      bs.push({ start, size: n, owner: owner === '-' ? null : owner })
+      start += n
+    }
+    return start === 100 ? bs : undefined
+  },
+}
+
+const nextProcessNumber = (bs: MemBlock[]) => Math.max(0, ...bs.map((b) => (b.owner?.startsWith('P') ? Number(b.owner.slice(1)) : 0))) + 1
+
 function AllocationLab() {
-  const [blocks, setBlocks] = useState(initialMem)
-  const [strategy, setStrategy] = useState<FitStrategy>('first')
-  const [size, setSize] = useState(15)
-  const [counter, setCounter] = useState(1)
+  const [blocks, setBlocks] = useUrlState('memory', initialMem(), blocksCodec)
+  const [strategy, setStrategy] = useUrlState<FitStrategy>('fit', 'first', codecs.oneOf(['first', 'best', 'worst']))
+  const [size, setSize] = useUrlState('size', 15, codecs.int(1, 100))
+  const [counter, setCounter] = useState(() => nextProcessNumber(blocks))
   const [message, setMessage] = useState<{ tone: 'good' | 'bad' | 'info'; text: string } | null>(null)
   const [candidates, setCandidates] = useState<{ starts: number[]; chosen: number | null }>({ starts: [], chosen: null })
   const [fragFailure, setFragFailure] = useState(false)
@@ -512,6 +549,8 @@ function AllocationLab() {
 
   return (
     <Card
+      id="allocation"
+      share
       title="Contiguous memory allocation"
       subtitle="Allocate processes into a 100 KB memory, click a process to free it, and watch holes appear."
       actions={
