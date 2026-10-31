@@ -1,3 +1,4 @@
+import { useText, type Localized } from '../i18n'
 import type { TopicMeta } from '../types'
 
 export const topics: TopicMeta[] = [
@@ -127,4 +128,50 @@ export function topicById(id: string): TopicMeta {
   const t = topics.find((t) => t.id === id)
   if (!t) throw new Error(`Unknown topic ${id}`)
   return t
+}
+
+type TopicText = Record<string, { title: string; tagline: string }>
+
+const topicText: Localized<TopicText> = {
+  en: Object.fromEntries(topics.map((t) => [t.id, { title: t.title, tagline: t.tagline }])),
+  he: {
+    processes: { title: 'Processes', tagline: 'תוכניות בהרצה: מצבים, PCB, ‏fork, ‏exec, ‏wait ו-exit.' },
+    threads: { title: 'Threads', tagline: 'כמה זרימות ביצוע במרחב כתובות אחד, ולמה הן צריכות נעילות.' },
+    sync: { title: 'סנכרון', tagline: 'Semaphores ובעיית ה-producer-consumer: מי מחכה, ומתי.' },
+    deadlock: { title: 'Deadlock', tagline: 'המתנה מעגלית, resource allocation graphs וה-banker\'s algorithm.' },
+    scheduling: { title: 'תזמון מעבד', tagline: 'מי רץ הבא? FCFS, ‏SJF, ‏Round Robin, ‏Priority ו-context switches.' },
+    memory: { title: 'ניהול זיכרון', tagline: 'כתובות וירטואליות, page tables, ‏page faults ואסטרטגיות הקצאה.' },
+    storage: { title: 'אחסון ומערכות קבצים', tagline: 'בלוקים, inodes, תיקיות, שיטות הקצאה ותזמון דיסק.' },
+    syscalls: { title: 'System calls', tagline: 'המעבר מ-user mode אל ה-kernel ובחזרה.' },
+  },
+  ar: {
+    processes: { title: 'Processes', tagline: 'برامج قيد التنفيذ: الحالات و PCB و fork و exec و wait و exit.' },
+    threads: { title: 'Threads', tagline: 'عدة مسارات تنفيذ في مساحة عناوين واحدة، ولماذا تحتاج إلى أقفال.' },
+    sync: { title: 'التزامن', tagline: 'Semaphores ومشكلة producer-consumer: من ينتظر ومتى.' },
+    deadlock: { title: 'Deadlock', tagline: 'الانتظار الدائري و resource allocation graphs و banker\'s algorithm.' },
+    scheduling: { title: 'جدولة المعالج', tagline: 'من يعمل تاليًا؟ FCFS و SJF و Round Robin و Priority و context switches.' },
+    memory: { title: 'إدارة الذاكرة', tagline: 'العناوين الافتراضية و page tables و page faults واستراتيجيات التخصيص.' },
+    storage: { title: 'التخزين وأنظمة الملفات', tagline: 'الكتل و inodes والمجلدات وطرق التخصيص وجدولة القرص.' },
+    syscalls: { title: 'System calls', tagline: 'العبور من user mode إلى الـ kernel والعودة.' },
+  },
+  es: {
+    processes: { title: 'Processes', tagline: 'Programas en ejecución: estados, PCB, fork, exec, wait y exit.' },
+    threads: { title: 'Threads', tagline: 'Varios flujos de ejecución en un mismo espacio de direcciones, y por qué necesitan locks.' },
+    sync: { title: 'Sincronización', tagline: 'Semaphores y el problema producer-consumer: quién espera y cuándo.' },
+    deadlock: { title: 'Deadlock', tagline: 'Esperas circulares, resource allocation graphs y el banker\'s algorithm.' },
+    scheduling: { title: 'Planificación de CPU', tagline: '¿Quién se ejecuta ahora? FCFS, SJF, Round Robin, Priority y context switches.' },
+    memory: { title: 'Gestión de memoria', tagline: 'Direcciones virtuales, page tables, page faults y estrategias de asignación.' },
+    storage: { title: 'Almacenamiento y sistemas de archivos', tagline: 'Bloques, inodes, directorios, métodos de asignación y planificación de disco.' },
+    syscalls: { title: 'System calls', tagline: 'Cruzar la frontera entre user mode y el kernel, ida y vuelta.' },
+  },
+}
+
+/** Topics with their title and tagline in the current language. */
+export function useTopics(): TopicMeta[] {
+  const text = useText(topicText)
+  return topics.map((t) => ({ ...t, ...text[t.id] }))
+}
+
+export function useTopic(id: string): TopicMeta {
+  return useTopics().find((t) => t.id === id) ?? topicById(id)
 }

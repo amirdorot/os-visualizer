@@ -167,7 +167,7 @@ function RagLab() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                <tr className="text-start text-xs uppercase tracking-wide text-muted">
                   <th className="p-1.5">Process</th>
                   {s.resources.map((r) => (
                     <th key={r} className="p-1.5">
@@ -181,7 +181,7 @@ function RagLab() {
                   <tr key={p} className="border-t border-line">
                     <td className="p-1.5 font-mono font-bold">
                       {p}
-                      {s.waiting[p] && <span className="ml-1 text-xs font-normal text-amber-600 dark:text-amber-300">waiting</span>}
+                      {s.waiting[p] && <span className="ms-1 text-xs font-normal text-amber-600 dark:text-amber-300">waiting</span>}
                     </td>
                     {s.resources.map((r) => {
                       const holds = s.holder[r] === p
@@ -291,7 +291,7 @@ function BankerLab() {
         <table className="text-sm">
           <thead>
             <tr className="text-xs uppercase tracking-wide text-muted">
-              <th className="p-1.5 text-left">Process</th>
+              <th className="p-1.5 text-start">Process</th>
               <th className="p-1.5" colSpan={3}>
                 Allocation
               </th>
@@ -301,7 +301,7 @@ function BankerLab() {
               <th className="p-1.5" colSpan={3}>
                 Need = Max - Allocation
               </th>
-              <th className="p-1.5 text-left">Status</th>
+              <th className="p-1.5 text-start">Status</th>
             </tr>
             <tr className="font-mono text-xs text-muted">
               <th />

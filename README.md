@@ -17,6 +17,8 @@ An interactive infographic that teaches how operating systems work. Every topic 
 
 Every simulation's settings live in the page URL, so the **Share** button (or the address bar) gives a link that reopens the exact same setup. **Present** turns a topic into slides for teaching: one simulation per slide, larger text, arrow keys to move, and links that open on a specific slide.
 
+The site is available in English, Hebrew, Arabic and Spanish (Hebrew and Arabic are laid out right to left). Pick a language from the header, or add `?lang=he`, `?lang=ar` or `?lang=es` to a link. Technical terms stay in English in every language. Interface text lives in `src/i18n`; any text without a translation falls back to English.
+
 The **Quiz Hub** mixes topics, offers endless practice and a review of the questions you missed. There is also a **Glossary** and an **About** page. Progress is stored in `localStorage`.
 
 ## Development

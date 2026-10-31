@@ -248,7 +248,7 @@ function RaceLab() {
                     {t.done ? 'finished' : t.blocked ? 'blocked on mutex' : `loop ${t.iter + 1} of ${s.iterations}`}
                   </div>
                 </div>
-                <ol className="mb-2 grid gap-0.5 font-mono text-xs">
+                <ol className="mb-2 grid gap-0.5 font-mono text-xs" dir="ltr">
                   {prog.map((op, i) => {
                     const current = !t.done && t.pc === i
                     const critical = s.useMutex && i > 0 && i < prog.length - 1
@@ -258,7 +258,7 @@ function RaceLab() {
                         className={cx(
                           'flex items-center gap-2 rounded px-2 py-1',
                           current ? 'bg-surface font-bold text-ink ring-2' : 'text-muted',
-                          critical && 'border-l-2 border-amber-500',
+                          critical && 'border-s-2 border-amber-500',
                         )}
                         style={current ? ({ '--tw-ring-color': threadColor(t.id) } as CSSProperties) : undefined}
                       >

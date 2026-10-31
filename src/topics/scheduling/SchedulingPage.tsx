@@ -229,7 +229,7 @@ function Workload({
               onClick={() => {
                 if (!dragged.current) onAdd(p)
               }}
-              className="relative cursor-grab rounded-xl border border-line bg-surface-2 px-3 py-2 text-left text-sm shadow-sm active:cursor-grabbing"
+              className="relative cursor-grab rounded-xl border border-line bg-surface-2 px-3 py-2 text-start text-sm shadow-sm active:cursor-grabbing"
             >
               <div className="font-medium">{p.name}</div>
               <div className="text-xs text-muted">
@@ -252,7 +252,7 @@ function Workload({
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[460px] text-sm">
-            <thead className="text-left text-xs text-muted">
+            <thead className="text-start text-xs text-muted">
               <tr>
                 <th className="py-1 font-medium">Process</th>
                 <th className="py-1 font-medium">Arrival</th>
@@ -273,7 +273,7 @@ function Workload({
                       </span>
                     </td>
                     {(['arrival', 'burst', 'priority'] as const).map((field) => (
-                      <td key={field} className="py-1 pr-2">
+                      <td key={field} className="py-1 pe-2">
                         <input
                           type="number"
                           aria-label={`${j.id} ${field}`}
@@ -288,7 +288,7 @@ function Workload({
                         />
                       </td>
                     ))}
-                    <td className="py-1 text-right">
+                    <td className="py-1 text-end">
                       <Button size="sm" variant="ghost" onClick={() => onRemove(j.id)} aria-label={`Remove ${j.id}`}>
                         Remove
                       </Button>
@@ -339,7 +339,7 @@ function CpuView({
     <div className="grid gap-4 rounded-2xl border border-line bg-surface-2 p-4">
       <div className="flex items-center gap-4">
         <div className="relative grid size-36 shrink-0 place-items-center rounded-2xl border-4 border-amber-500/60 bg-surface">
-          <span className="absolute left-2 top-1 text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-300">CPU</span>
+          <span className="absolute start-2 top-1 text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-300">CPU</span>
           {tick.running ? (
             <Chip id={tick.running} ids={ids} label={`${tick.remaining[tick.running]} left`} />
           ) : (
@@ -438,7 +438,7 @@ function ContextSwitchView({
               </motion.div>
               <PcbCard job={jobById(to)} tick={tick} ids={ids} role="load" />
             </div>
-            <ol className="list-decimal space-y-0.5 pl-5 text-sm text-muted">
+            <ol className="list-decimal space-y-0.5 ps-5 text-sm text-muted">
               <li>Interrupt: CPU traps into the kernel.</li>
               <li>Save {from}'s PC, SP and registers into PCB({from}).</li>
               <li>Scheduler selects {to}.</li>
@@ -474,7 +474,7 @@ function Gantt({
   return (
     <div>
       <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Gantt chart</div>
-      <div className="relative h-12 overflow-hidden rounded-xl border border-line bg-surface-2">
+      <div className="relative h-12 overflow-hidden rounded-xl border border-line bg-surface-2" dir="ltr">
         {segments
           .filter((s) => s.start < filled)
           .map((s) => {
@@ -499,7 +499,7 @@ function Gantt({
           })}
         <div className="absolute inset-y-0 w-0.5 bg-ink/70 transition-all" style={{ left: `${(filled / width) * 100}%` }} />
       </div>
-      <div className="relative mt-1 h-4 font-mono text-[10px] text-muted">
+      <div className="relative mt-1 h-4 font-mono text-[10px] text-muted" dir="ltr">
         {Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => i * step).map((x) => (
           <span key={x} className="absolute -translate-x-1/2" style={{ left: `${(x / width) * 100}%` }}>
             {x}
@@ -526,7 +526,7 @@ function StatsTable({
     <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
-          <thead className="text-left text-xs text-muted">
+          <thead className="text-start text-xs text-muted">
             <tr>
               <th className="py-1 font-medium">Process</th>
               <th className="py-1 font-medium">Arrival</th>

@@ -32,11 +32,16 @@ const paths: Record<string, string> = {
   present: 'M3 4h18v12H3zM12 16v4M8 20h8',
   chevronLeft: 'M15 6l-6 6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
+  globe: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3c2.5 2.5 3.8 5.5 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.5-3.8-9S9.5 5.5 12 3z',
 }
+
+/** Arrows that point "forward" or "back" in reading order, so they mirror in right-to-left languages. */
+const directional = new Set(['arrowRight', 'chevronLeft', 'chevronRight'])
 
 export function Icon({ name, className = 'size-5' }: { name: string; className?: string }) {
   return (
     <svg
+      data-flip={directional.has(name) || undefined}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

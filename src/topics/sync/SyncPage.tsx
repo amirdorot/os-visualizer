@@ -230,7 +230,7 @@ function BufferLab() {
               {s.buffer.length} / {s.capacity} used
             </span>
           </div>
-          <div className="flex flex-wrap gap-2" aria-label={`Buffer contains ${s.buffer.length} items`}>
+          <div className="flex flex-wrap gap-2" dir="ltr" aria-label={`Buffer contains ${s.buffer.length} items`}>
             {Array.from({ length: s.capacity }, (_, i) => {
               const item = s.buffer[i]
               return (
@@ -301,7 +301,7 @@ function BufferLab() {
                     </li>
                   ))}
                 </ol>
-                <div className="text-right">
+                <div className="text-end">
                   <Button size="sm" disabled={sim.playing} onClick={() => sim.push(stepActor(s, a.id))}>
                     {blocked ? 'Try to run (will block)' : 'Run next instruction'}
                   </Button>

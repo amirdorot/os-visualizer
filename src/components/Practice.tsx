@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { generate } from '../data/generators'
-import { topicById } from '../data/topics'
+import { useTopics } from '../data/topics'
+import { useUi } from '../i18n/ui'
 import { useProgress } from '../store/progress'
 import { Icon } from './Icon'
 import { QuestionCard } from './Quiz'
 import { Button } from './ui'
 
 /** Endless stream of freshly generated questions; answers are computed by the same engines that drive the simulations. */
-export function Practice({ topics, title = 'Unlimited practice', showTopic = false }: { topics: string[]; title?: string; showTopic?: boolean }) {
+export function Practice({ topics, title, showTopic = false }: { topics: string[]; title?: string; showTopic?: boolean }) {
+  const t = useUi().practice
+  const allTopics = useTopics()
   const [current, setCurrent] = useState(() => generate(topics))
   const [result, setResult] = useState<boolean | undefined>(undefined)
   const [streak, setStreak] = useState(0)
@@ -34,29 +37,29 @@ export function Practice({ topics, title = 'Unlimited practice', showTopic = fal
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Icon name="cycle" className="size-5 text-indigo-500" />
-            {title}
+            {title ?? t.title}
           </h2>
-          <p className="text-sm text-muted">New numbers every time. Answers are computed by the same code that runs the simulations.</p>
+          <p className="text-sm text-muted">{t.subtitle}</p>
         </div>
         <div className="flex gap-2 text-center text-xs">
-          <PracticeStat label="This session" value={`${session.correct}/${session.answered}`} />
-          <PracticeStat label="Streak" value={String(streak)} />
-          <PracticeStat label="Best streak" value={String(bestStreak)} />
+          <PracticeStat label={t.session} value={`${session.correct}/${session.answered}`} />
+          <PracticeStat label={t.streak} value={String(streak)} />
+          <PracticeStat label={t.best} value={String(bestStreak)} />
         </div>
       </header>
       <QuestionCard
         cardKey={current.question.id}
         q={current.question}
-        label={showTopic ? topicById(current.topic).title : undefined}
+        label={showTopic ? allTopics.find((x) => x.id === current.topic)?.title : undefined}
         result={result}
         onSubmit={submit}
         onNext={next}
-        nextLabel="Another one"
+        nextLabel={t.another}
       />
       {result === undefined && (
-        <div className="mt-4 text-right">
+        <div className="mt-4 text-end">
           <Button variant="ghost" size="sm" onClick={next}>
-            Skip <Icon name="arrowRight" className="size-3.5" />
+            {t.skip} <Icon name="arrowRight" className="size-3.5" />
           </Button>
         </div>
       )}

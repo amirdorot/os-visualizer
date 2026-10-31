@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { Children, useEffect, useRef, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { topicById, topics } from '../data/topics'
+import { useTopics } from '../data/topics'
 import { codecs, useUrlState } from '../hooks/useUrlState'
 import { countCorrect, useProgress } from '../store/progress'
 import type { Question } from '../types'
@@ -12,6 +12,8 @@ import { ShareButton } from './ShareButton'
 import { Button } from './ui'
 import { generators } from '../data/generators'
 import { cx } from '../lib/utils'
+import { useLocale, dirOf } from '../i18n'
+import { useUi } from '../i18n/ui'
 
 
 export function TopicLayout({
@@ -27,7 +29,10 @@ export function TopicLayout({
   questions: Question[]
   children: ReactNode
 }) {
-  const topic = topicById(topicId)
+  const topics = useTopics()
+  const topic = topics.find((x) => x.id === topicId)!
+  const t = useUi()
+  const rtl = dirOf(useLocale()) === 'rtl'
   const answers = useProgress((s) => s.answers)
   const correct = countCorrect(
     answers,
@@ -67,8 +72,10 @@ export function TopicLayout({
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('input, select, textarea, [contenteditable="true"]')) return
-      if (e.key === 'ArrowRight' || e.key === 'PageDown') setSlide((s) => Math.min(slideCount - 1, s + 1))
-      else if (e.key === 'ArrowLeft' || e.key === 'PageUp') setSlide((s) => Math.max(0, s - 1))
+      const forward = rtl ? 'ArrowLeft' : 'ArrowRight'
+      const back = rtl ? 'ArrowRight' : 'ArrowLeft'
+      if (e.key === forward || e.key === 'PageDown') setSlide((s) => Math.min(slideCount - 1, s + 1))
+      else if (e.key === back || e.key === 'PageUp') setSlide((s) => Math.max(0, s - 1))
       else if (e.key === 'Escape') stopPresenting()
       else return
       e.preventDefault()
@@ -82,16 +89,17 @@ export function TopicLayout({
       document.removeEventListener('fullscreenchange', onFullscreen)
       document.documentElement.classList.remove('presenting')
     }
-  }, [presenting, slideCount, setSlide, setPresent])
+  }, [presenting, slideCount, setSlide, setPresent, rtl])
 
 
   useEffect(() => {
     if (!presenting) return
     window.scrollTo({ top: 0 })
     // Slide titles come from each section's own heading, whatever component renders it.
-    const heading = slide === 0 ? 'Introduction' : slide === slideCount - 1 ? 'Quiz' : sectionsRef.current?.children[slide - 1]?.querySelector('h2, h3')?.textContent
-    if (titleRef.current) titleRef.current.textContent = heading ?? `Part ${slide}`
-  }, [presenting, slide, slideCount])
+    const heading =
+      slide === 0 ? t.topic.introduction : slide === slideCount - 1 ? t.topic.quiz : sectionsRef.current?.children[slide - 1]?.querySelector('h2, h3')?.textContent
+    if (titleRef.current) titleRef.current.textContent = heading ?? t.topic.part(slide)
+  }, [presenting, slide, slideCount, t])
 
   return (
     <div className={cx('mx-auto max-w-6xl px-4 sm:px-6', presenting ? 'pb-28' : 'pb-16')}>
@@ -100,29 +108,29 @@ export function TopicLayout({
         animate={{ opacity: 1, y: 0 }}
         className={cx('relative mt-6 overflow-hidden rounded-3xl border border-line bg-surface p-6 sm:p-8', !shows(0) && 'hidden')}
       >
-        <div className={cx('absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r', topic.accent.gradient)} />
+        <div className={cx('absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r rtl:bg-gradient-to-l', topic.accent.gradient)} />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="max-w-3xl">
             <div className={cx('mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider', topic.accent.text)}>
               <Icon name={topic.icon} className="size-5" />
-              Topic {i + 1} of {topics.length}
+              {t.topic.topicOf(i + 1, topics.length)}
             </div>
             <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{topic.title}</h1>
             <div className="mt-3 leading-relaxed text-muted">{intro}</div>
           </div>
           <div className="flex flex-col items-end gap-2">
             <div className="rounded-2xl border border-line bg-surface-2 px-4 py-3 text-center">
-              <div className="text-xs uppercase tracking-wide text-muted">Quiz mastery</div>
+              <div className="text-xs uppercase tracking-wide text-muted">{t.topic.mastery}</div>
               <div className="font-mono text-2xl font-bold">
                 {correct}/{questions.length}
               </div>
             </div>
             {!presenting && (
               <div className="flex flex-wrap justify-end gap-1">
-                <Button size="sm" variant="ghost" onClick={start} title="Show this topic as slides, one simulation at a time">
-                  <Icon name="present" className="size-3.5" /> Present
+                <Button size="sm" variant="ghost" onClick={start} title={t.topic.presentHint}>
+                  <Icon name="present" className="size-3.5" /> {t.topic.present}
                 </Button>
-                <ShareButton label="Share" />
+                <ShareButton label={t.topic.share} />
               </div>
             )}
           </div>
@@ -145,43 +153,43 @@ export function TopicLayout({
       </div>
 
       <div className={cx('mt-8', !shows(slideCount - 1) && 'hidden', presenting && 'mt-6')}>
-        <Quiz questions={questions} title={`${topic.title} quiz`} />
+        <Quiz questions={questions} title={t.topic.quizTitle(topic.title)} />
       </div>
 
       {!presenting && generators[topicId] && (
         <div className="mt-6">
-          <Practice key={topicId} topics={[topicId]} title={`Unlimited ${topic.title.toLowerCase()} practice`} />
+          <Practice key={topicId} topics={[topicId]} title={t.topic.practiceTitle(topic.title)} />
         </div>
       )}
 
       {!presenting && (
-        <nav className="mt-8 flex flex-wrap justify-between gap-3" aria-label="Topic navigation">
+        <nav className="mt-8 flex flex-wrap justify-between gap-3" aria-label={t.topic.navigation}>
           {prev ? (
             <Link to={prev.path} className="rounded-xl border border-line bg-surface px-4 py-3 text-sm hover:border-indigo-400">
-              <span className="block text-xs text-muted">Previous</span>
+              <span className="block text-xs text-muted">{t.topic.previous}</span>
               {prev.title}
             </Link>
           ) : (
             <span />
           )}
           {next ? (
-            <Link to={next.path} className="rounded-xl border border-line bg-surface px-4 py-3 text-right text-sm hover:border-indigo-400">
-              <span className="block text-xs text-muted">Next</span>
+            <Link to={next.path} className="rounded-xl border border-line bg-surface px-4 py-3 text-end text-sm hover:border-indigo-400">
+              <span className="block text-xs text-muted">{t.topic.next}</span>
               {next.title}
             </Link>
           ) : (
-            <Link to="/quiz" className="rounded-xl border border-line bg-surface px-4 py-3 text-right text-sm hover:border-indigo-400">
-              <span className="block text-xs text-muted">Finish with</span>
-              The mixed Quiz Hub
+            <Link to="/quiz" className="rounded-xl border border-line bg-surface px-4 py-3 text-end text-sm hover:border-indigo-400">
+              <span className="block text-xs text-muted">{t.topic.finishWith}</span>
+              {t.topic.mixedQuizHub}
             </Link>
           )}
         </nav>
       )}
 
       {presenting && (
-        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-page/95 backdrop-blur" role="toolbar" aria-label="Presentation controls">
+        <div className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-page/95 backdrop-blur" role="toolbar" aria-label={t.topic.controls}>
           <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2 sm:px-6">
-            <Button onClick={() => setSlide(Math.max(0, slide - 1))} disabled={slide === 0} aria-label="Previous slide">
+            <Button onClick={() => setSlide(Math.max(0, slide - 1))} disabled={slide === 0} aria-label={t.topic.prevSlide}>
               <Icon name="chevronLeft" className="size-4" />
             </Button>
             <div className="min-w-0 flex-1 text-center">
@@ -194,19 +202,19 @@ export function TopicLayout({
                     key={n}
                     type="button"
                     onClick={() => setSlide(n)}
-                    aria-label={`Slide ${n + 1}`}
+                    aria-label={t.topic.slide(n + 1)}
                     aria-current={n === slide}
                     className={cx('h-1.5 rounded-full transition-all', n === slide ? cx('w-6', topic.accent.bg) : 'w-1.5 bg-line hover:bg-muted')}
                   />
                 ))}
               </div>
             </div>
-            <Button onClick={() => setSlide(Math.min(slideCount - 1, slide + 1))} disabled={slide === slideCount - 1} aria-label="Next slide">
+            <Button onClick={() => setSlide(Math.min(slideCount - 1, slide + 1))} disabled={slide === slideCount - 1} aria-label={t.topic.nextSlide}>
               <Icon name="chevronRight" className="size-4" />
             </Button>
-            <ShareButton label="Share slide" />
-            <Button variant="ghost" onClick={stop} title="Exit presentation (Esc)">
-              <Icon name="x" className="size-4" /> Exit
+            <ShareButton label={t.topic.shareSlide} />
+            <Button variant="ghost" onClick={stop} title={t.topic.exitHint}>
+              <Icon name="x" className="size-4" /> {t.topic.exit}
             </Button>
           </div>
         </div>

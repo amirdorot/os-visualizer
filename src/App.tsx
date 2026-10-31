@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { createBrowserRouter, Link, RouterProvider } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
+import { useUi } from './i18n/ui'
 
 const ProcessesPage = lazy(() => import('./topics/processes/ProcessesPage'))
 const ThreadsPage = lazy(() => import('./topics/threads/ThreadsPage'))
@@ -16,7 +17,16 @@ const QuizHub = lazy(() => import('./pages/QuizHub'))
 const GlossaryPage = lazy(() => import('./pages/GlossaryPage'))
 
 function Loading() {
-  return <div className="p-12 text-center text-muted">Loading...</div>
+  return <div className="p-12 text-center text-muted">{useUi().loading}</div>
+}
+
+function NotFound() {
+  const t = useUi()
+  return (
+    <div className="p-12 text-center text-muted">
+      {t.notFound} <Link to="/" className="underline">{t.goHome}</Link>
+    </div>
+  )
 }
 
 function wrap(node: ReactNode) {
@@ -42,11 +52,7 @@ const router = createBrowserRouter([
       { path: 'about', element: wrap(<AboutPage />) },
       {
         path: '*',
-        element: (
-          <div className="p-12 text-center text-muted">
-            Page not found. <Link to="/" className="underline">Go to the overview</Link>
-          </div>
-        ),
+        element: <NotFound />,
       },
     ],
   },

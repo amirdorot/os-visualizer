@@ -5,6 +5,7 @@ import type { OrderQuestion, PredictQuestion, Question } from '../types'
 import { Icon } from './Icon'
 import { cx, inputClass, shuffle } from '../lib/utils'
 import { Button } from './ui'
+import { useUi } from '../i18n/ui'
 
 function shuffledOrder(items: string[]) {
   if (items.length < 2) return items
@@ -19,7 +20,7 @@ interface Feedback {
 
 export function Quiz({
   questions,
-  title = 'Check your understanding',
+  title,
   showTopic,
 }: {
   questions: Question[]
@@ -27,6 +28,7 @@ export function Quiz({
   /** Optional label rendered above each question, e.g. its topic in the mixed quiz. */
   showTopic?: (q: Question) => string
 }) {
+  const t = useUi().quiz
   const [index, setIndex] = useState(0)
   const [results, setResults] = useState<Record<string, boolean>>({})
   const [round, setRound] = useState(0)
@@ -51,9 +53,9 @@ export function Quiz({
       <header className="mb-4 flex items-center justify-between gap-3">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <Icon name="quiz" className="size-5 text-indigo-500" />
-          {title}
+          {title ?? t.defaultTitle}
         </h2>
-        <div className="flex items-center gap-1.5" aria-label={`Question ${Math.min(index + 1, questions.length)} of ${questions.length}`}>
+        <div className="flex items-center gap-1.5" aria-label={t.progress(Math.min(index + 1, questions.length), questions.length)}>
           {questions.map((qq, i) => (
             <span
               key={qq.id}
@@ -75,13 +77,13 @@ export function Quiz({
           </div>
           <p className="mt-2 text-muted">
             {score === questions.length
-              ? 'Perfect score. You have mastered this material.'
+              ? t.perfect
               : score >= questions.length / 2
-                ? 'Good work. Revisit the simulations for the ones you missed.'
-                : 'Keep going: play with the simulations above, then try again.'}
+                ? t.good
+                : t.keepGoing}
           </p>
           <Button variant="primary" className="mt-4" onClick={restart}>
-            <Icon name="reset" className="size-4" /> Try again
+            <Icon name="reset" className="size-4" /> {t.tryAgain}
           </Button>
         </div>
       ) : (
@@ -92,7 +94,7 @@ export function Quiz({
           result={results[q.id]}
           onSubmit={submit}
           onNext={() => setIndex((i) => i + 1)}
-          nextLabel={index === questions.length - 1 ? 'See results' : 'Next question'}
+          nextLabel={index === questions.length - 1 ? t.seeResults : t.nextQuestion}
         />
       )}
     </section>
@@ -117,6 +119,7 @@ export function QuestionCard({
   onNext: () => void
   nextLabel: string
 }) {
+  const t = useUi().quiz
   return (
     <AnimatePresence mode="wait">
       <motion.div
@@ -145,10 +148,10 @@ export function QuestionCard({
           >
             <div className="mb-1 flex items-center gap-1.5 font-semibold">
               <Icon name={result ? 'check' : 'x'} className="size-4" />
-              {result ? 'Correct!' : 'Not quite.'}
+              {result ? t.correct : t.notQuite}
             </div>
             <p className="whitespace-pre-line text-muted">{q.explanation}</p>
-            <div className="mt-3 text-right">
+            <div className="mt-3 text-end">
               <Button variant="primary" onClick={onNext}>
                 {nextLabel}
                 <Icon name="arrowRight" className="size-4" />
@@ -200,7 +203,7 @@ function McqBody({
               onSubmit(isAnswer)
             }}
             className={cx(
-              'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors',
+              'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-start text-sm transition-colors',
               answered === null && 'border-line bg-surface-2 hover:border-indigo-400',
               answered !== null && isAnswer && 'border-emerald-500 bg-emerald-500/15',
               answered !== null && isPicked && !isAnswer && 'border-rose-500 bg-rose-500/15',
@@ -227,6 +230,7 @@ function PredictBody({
   answered: Feedback | null
   onSubmit: (correct: boolean) => void
 }) {
+  const t = useUi().quiz
   const [value, setValue] = useState('')
   const check = () => {
     const n = Number(value)
@@ -245,21 +249,21 @@ function PredictBody({
         type="number"
         step="any"
         inputMode="decimal"
-        aria-label="Your answer"
+        aria-label={t.yourAnswer}
         value={value}
         disabled={answered !== null}
         onChange={(e) => setValue(e.target.value)}
         className={cx(inputClass, 'w-36')}
-        placeholder="Your answer"
+        placeholder={t.yourAnswer}
       />
       {q.unit && <span className="text-sm text-muted">{q.unit}</span>}
       {answered === null ? (
         <Button type="submit" variant="primary" disabled={value.trim() === ''}>
-          Check
+          {t.check}
         </Button>
       ) : (
         <span className="text-sm">
-          Correct answer: <strong className="font-mono">{q.answer}</strong> {q.unit}
+          {t.correctAnswer} <strong className="font-mono">{q.answer}</strong> {q.unit}
         </span>
       )}
     </form>
@@ -275,6 +279,7 @@ function OrderBody({
   answered: Feedback | null
   onSubmit: (correct: boolean) => void
 }) {
+  const t = useUi().quiz
   const [items, setItems] = useState(() => shuffledOrder(q.items))
   const move = (i: number, d: number) => {
     const j = i + d
@@ -285,7 +290,7 @@ function OrderBody({
   }
   return (
     <div>
-      <p className="mb-2 text-xs text-muted">Drag the cards (or use the arrow buttons) into the right order, top to bottom.</p>
+      <p className="mb-2 text-xs text-muted">{t.dragHint}</p>
       <Reorder.Group axis="y" values={items} onReorder={answered ? () => {} : setItems} className="grid gap-2">
         {items.map((item, i) => {
           const correctHere = q.items[i] === item
@@ -305,10 +310,10 @@ function OrderBody({
               <span className="flex-1">{item}</span>
               {answered === null && (
                 <span className="flex gap-1">
-                  <button type="button" aria-label={`Move "${item}" up`} onClick={() => move(i, -1)} className="rounded p-1 hover:bg-surface">
+                  <button type="button" aria-label={t.moveUp(item)} onClick={() => move(i, -1)} className="rounded p-1 hover:bg-surface">
                     <Icon name="up" className="size-3.5" />
                   </button>
-                  <button type="button" aria-label={`Move "${item}" down`} onClick={() => move(i, 1)} className="rounded p-1 hover:bg-surface">
+                  <button type="button" aria-label={t.moveDown(item)} onClick={() => move(i, 1)} className="rounded p-1 hover:bg-surface">
                     <Icon name="down" className="size-3.5" />
                   </button>
                 </span>
@@ -319,11 +324,11 @@ function OrderBody({
       </Reorder.Group>
       {answered === null ? (
         <Button variant="primary" className="mt-3" onClick={() => onSubmit(items.every((x, i) => x === q.items[i]))}>
-          Check order
+          {t.checkOrder}
         </Button>
       ) : (
         !answered.correct && (
-          <ol className="mt-3 list-decimal pl-5 text-sm text-muted">
+          <ol className="mt-3 list-decimal ps-5 text-sm text-muted">
             {q.items.map((x) => (
               <li key={x}>{x}</li>
             ))}

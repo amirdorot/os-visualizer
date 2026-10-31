@@ -4,12 +4,14 @@ import { cx } from '../lib/utils'
 import { useProgress } from '../store/progress'
 import type { ChallengeMeta } from '../types'
 import { Icon } from './Icon'
+import { useUi } from '../i18n/ui'
 
 /**
  * Goals for a simulation. `met` maps challenge ids to whether the current simulation
  * state satisfies them; once met, a challenge stays completed.
  */
 export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record<string, boolean> }) {
+  const t = useUi().challenges
   const done = useProgress((s) => s.challenges)
   const complete = useProgress((s) => s.completeChallenge)
   const last = useProgress((s) => s.lastChallenge)
@@ -23,8 +25,8 @@ export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record
 
   useEffect(() => {
     if (!justDone) return
-    const t = window.setTimeout(clearLast, 3500)
-    return () => window.clearTimeout(t)
+    const timer = window.setTimeout(clearLast, 3500)
+    return () => window.clearTimeout(timer)
   }, [justDone, clearLast])
 
   const count = items.filter((c) => done[c.id]).length
@@ -34,10 +36,10 @@ export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record
       <div className="mb-2 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Icon name="flag" className="size-4 text-indigo-500" />
-          Challenges
+          {t.title}
         </div>
         <span className="font-mono text-xs text-muted">
-          {count}/{items.length} done
+          {t.done(count, items.length)}
         </span>
       </div>
       <ul className="grid gap-1.5">
@@ -54,7 +56,7 @@ export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record
                 </span>
                 <span className="flex-1">
                   <span className={cx(isDone && 'text-muted line-through decoration-emerald-500/60')}>{c.title}</span>
-                  <span className="sr-only">{isDone ? ' (completed)' : ' (not completed)'}</span>
+                  <span className="sr-only">{isDone ? t.completed : t.notCompleted}</span>
                   {openHint === c.id && <span className="mt-1 block text-xs text-muted">{c.hint}</span>}
                 </span>
                 {!isDone && (
@@ -64,7 +66,7 @@ export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record
                     className="shrink-0 text-xs text-indigo-600 underline-offset-2 hover:underline dark:text-indigo-300"
                     aria-expanded={openHint === c.id}
                   >
-                    {openHint === c.id ? 'Hide hint' : 'Hint'}
+                    {openHint === c.id ? t.hideHint : t.hint}
                   </button>
                 )}
               </div>
@@ -81,7 +83,7 @@ export function Challenges({ items, met }: { items: ChallengeMeta[]; met: Record
             exit={{ opacity: 0 }}
             className="mt-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-medium text-white"
           >
-            Challenge complete: {items.find((c) => c.id === justDone)?.title}
+            {t.complete} {items.find((c) => c.id === justDone)?.title}
           </motion.div>
         )}
       </AnimatePresence>

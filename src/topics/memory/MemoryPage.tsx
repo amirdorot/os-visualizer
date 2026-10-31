@@ -167,13 +167,13 @@ function AddressTranslation() {
 
       {binary && tr && (
         <div className="mb-5 overflow-x-auto">
-          <div className="inline-flex items-stretch gap-1 font-mono text-sm">
-            <div className="rounded-l-xl bg-emerald-500/20 px-3 py-2">
+          <div className="inline-flex items-stretch gap-1 font-mono text-sm" dir="ltr">
+            <div className="rounded-s-xl bg-emerald-500/20 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted">page ({tr.pageBits} bits)</div>
               <div className="font-bold">{binary.slice(0, totalBits - tr.offsetBits)}</div>
               <div className="text-xs">= {tr.page}</div>
             </div>
-            <div className="rounded-r-xl bg-sky-500/20 px-3 py-2">
+            <div className="rounded-e-xl bg-sky-500/20 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wide text-muted">offset ({tr.offsetBits} bits)</div>
               <div className="font-bold">{binary.slice(totalBits - tr.offsetBits)}</div>
               <div className="text-xs">= {tr.offset}</div>
@@ -190,9 +190,9 @@ function AddressTranslation() {
           <table className="w-full font-mono text-sm">
             <thead className="text-xs text-muted">
               <tr>
-                <th className="text-left font-medium">page</th>
-                <th className="text-left font-medium">frame</th>
-                <th className="text-left font-medium">valid</th>
+                <th className="text-start font-medium">page</th>
+                <th className="text-start font-medium">frame</th>
+                <th className="text-start font-medium">valid</th>
               </tr>
             </thead>
             <tbody>
@@ -382,11 +382,11 @@ function PageReplacementLab() {
 
       <SimControls sim={sim} label={`reference ${shown}/${steps.length}`} />
 
-      <div className="mt-4 overflow-x-auto pb-2">
+      <div className="mt-4 overflow-x-auto pb-2" dir="ltr">
         <table className="border-separate border-spacing-1 font-mono text-sm">
           <tbody>
             <tr>
-              <th className="pr-2 text-left text-xs font-medium text-muted">ref</th>
+              <th className="pe-2 text-start text-xs font-medium text-muted">ref</th>
               {refs.map((r, i) => (
                 <td
                   key={i}
@@ -398,7 +398,7 @@ function PageReplacementLab() {
             </tr>
             {Array.from({ length: frames }, (_, f) => (
               <tr key={f}>
-                <th className="pr-2 text-left text-xs font-medium text-muted">frame {f}</th>
+                <th className="pe-2 text-start text-xs font-medium text-muted">frame {f}</th>
                 {steps.map((s, i) => {
                   const visible = i < shown
                   const changed = !s.hit && s.slot === f
@@ -418,7 +418,7 @@ function PageReplacementLab() {
               </tr>
             ))}
             <tr>
-              <th className="pr-2 text-left text-xs font-medium text-muted">result</th>
+              <th className="pe-2 text-start text-xs font-medium text-muted">result</th>
               {steps.map((s, i) => (
                 <td key={i} className={cx('text-center text-xs font-bold', s.hit ? 'text-emerald-500' : 'text-rose-500')}>
                   {i < shown ? (s.hit ? 'hit' : 'F') : ''}
@@ -586,7 +586,7 @@ function AllocationLab() {
         </Button>
       </div>
 
-      <div className="relative flex h-24 overflow-hidden rounded-2xl border border-line bg-surface-2">
+      <div className="relative flex h-24 overflow-hidden rounded-2xl border border-line bg-surface-2" dir="ltr">
         {blocks.map((b) => {
           const color = b.owner === 'OS' ? '#64748b' : b.owner ? jobColors[owners.indexOf(b.owner) % jobColors.length] : undefined
           const isCandidate = b.owner === null && candidates.starts.includes(b.start)
@@ -604,7 +604,7 @@ function AllocationLab() {
               }}
               title={b.owner ? `${b.owner}: ${b.size} KB (click to free)` : `hole: ${b.size} KB`}
               className={cx(
-                'relative flex flex-col items-center justify-center overflow-hidden border-r border-page text-xs font-semibold',
+                'relative flex flex-col items-center justify-center overflow-hidden border-e border-page text-xs font-semibold',
                 b.owner ? 'text-white' : 'text-muted',
                 isCandidate && 'ring-2 ring-inset ring-amber-500',
               )}

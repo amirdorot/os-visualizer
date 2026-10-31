@@ -169,7 +169,7 @@ export default function ProcessesPage() {
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 className={cx(
-                  'rounded-lg border-l-4 bg-surface-2 px-3 py-1.5',
+                  'rounded-lg border-s-4 bg-surface-2 px-3 py-1.5',
                   l.tone === 'good' && 'border-emerald-500',
                   l.tone === 'bad' && 'border-rose-500',
                   l.tone === 'info' && 'border-sky-500',
@@ -299,7 +299,7 @@ function ProcToken({ p, selected, onSelect }: { p: PCB; selected: boolean; onSel
       aria-pressed={selected}
       aria-label={`PID ${p.pid} ${p.program}, ${p.state}`}
       className={cx(
-        'rounded-lg border px-2 py-1 text-left font-mono text-xs shadow-sm',
+        'rounded-lg border px-2 py-1 text-start font-mono text-xs shadow-sm',
         selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-line bg-surface',
         p.state === 'terminated' && 'opacity-80',
       )}
@@ -416,13 +416,13 @@ function ProcessTree({ os, selected, onSelect }: { os: OSState; selected: number
       >
         {p.pid} {p.program} <span className="text-xs opacity-70">[{p.state}]</span>
       </button>
-      {children(p.pid).length > 0 && <ul className="ml-4 border-l border-line pl-3">{children(p.pid).map(render)}</ul>}
+      {children(p.pid).length > 0 && <ul className="ms-4 border-s border-line ps-3">{children(p.pid).map(render)}</ul>}
     </li>
   )
   return (
     <div className="font-mono text-sm">
       <div className="rounded-md px-2 py-0.5 text-muted">1 init</div>
-      <ul className="ml-4 border-l border-line pl-3">{children(INIT_PID).map(render)}</ul>
+      <ul className="ms-4 border-s border-line ps-3">{children(INIT_PID).map(render)}</ul>
     </div>
   )
 }

@@ -199,7 +199,7 @@ function FileSystemLab() {
                 {used}/{fs.disk.length} used
               </span>
             </div>
-            <div className="grid grid-cols-8 gap-1.5">
+            <div className="grid grid-cols-8 gap-1.5" dir="ltr">
               {fs.disk.map((owner, b) => {
                 const isSel = sel && owner === sel.id
                 const isIndex = owner !== null && owner !== META && fs.inodes[owner]?.indexBlock === b
@@ -222,7 +222,7 @@ function FileSystemLab() {
                     )}
                     style={owner !== null && owner !== META ? { background: inodeColor(owner) } : undefined}
                   >
-                    <span className="absolute left-1 top-0.5 text-[9px] opacity-70">{b}</span>
+                    <span className="absolute start-1 top-0.5 text-[9px] opacity-70">{b}</span>
                     <span className="font-bold">
                       {owner === META ? (b === 0 ? 'SB' : 'IT') : isIndex ? 'IDX' : order >= 0 ? `#${order}` : ''}
                     </span>
@@ -324,7 +324,7 @@ function Tree({
         type="button"
         onClick={() => onSelect(id)}
         className={cx(
-          'flex w-full items-center gap-2 rounded-md px-2 py-1 text-left font-mono text-sm',
+          'flex w-full items-center gap-2 rounded-md px-2 py-1 text-start font-mono text-sm',
           selected === id ? 'bg-sky-600 text-white' : 'hover:bg-surface',
         )}
       >
@@ -333,10 +333,10 @@ function Tree({
           {node.name}
           {node.type === 'dir' && id !== ROOT ? '/' : ''}
         </span>
-        {cwd === id && node.type === 'dir' && <span className="ml-auto text-[10px] uppercase opacity-70">cwd</span>}
+        {cwd === id && node.type === 'dir' && <span className="ms-auto text-[10px] uppercase opacity-70">cwd</span>}
       </button>
       {node.children.length > 0 && (
-        <div className="ml-3 border-l border-line pl-2">
+        <div className="ms-3 border-s border-line ps-2">
           {[...node.children]
             .sort((a, b) => fs.inodes[a].name.localeCompare(fs.inodes[b].name))
             .map((c) => (
@@ -358,10 +358,10 @@ function AllocationComparison() {
     <Card title="Allocation methods compared" subtitle="Switch the method in the explorer above and try growing a file to feel the difference.">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-muted">
+          <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
               {['Method', 'Inode stores', 'Sequential read', 'Random access', 'Growing a file', 'Fragmentation'].map((h) => (
-                <th key={h} className="py-2 pr-3 font-medium">
+                <th key={h} className="py-2 pe-3 font-medium">
                   {h}
                 </th>
               ))}
@@ -371,7 +371,7 @@ function AllocationComparison() {
             {rows.map((r) => (
               <tr key={r[0]} className="border-t border-line">
                 {r.map((c, i) => (
-                  <td key={i} className={cx('py-2 pr-3', i === 0 && 'font-semibold')}>
+                  <td key={i} className={cx('py-2 pe-3', i === 0 && 'font-semibold')}>
                     {c}
                   </td>
                 ))}
@@ -517,7 +517,7 @@ function DiskSchedulingLab() {
               <div className="h-3 overflow-hidden rounded-full bg-surface-2">
                 <motion.div className={cx('h-full rounded-full', c.a === algo ? 'bg-sky-500' : 'bg-muted/50')} animate={{ width: `${(c.total / maxTotal) * 100}%` }} />
               </div>
-              <span className="text-right font-mono">{c.total}</span>
+              <span className="text-end font-mono">{c.total}</span>
             </div>
           ))}
         </div>

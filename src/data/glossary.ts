@@ -4,7 +4,7 @@ export interface GlossaryEntry {
   topic: string
 }
 
-export const glossary: Record<string, GlossaryEntry> = {
+export const glossary = {
   process: {
     term: 'Process',
     definition: 'A program in execution: its code plus an address space, open files, registers and kernel bookkeeping.',
@@ -175,4 +175,4 @@ export const glossary: Record<string, GlossaryEntry> = {
     definition: 'Deadlock avoidance by Dijkstra: grant a request only if the resulting state is still safe, using each process\'s declared maximum demand.',
     topic: 'deadlock',
   },
-}
+} satisfies Record<string, GlossaryEntry>

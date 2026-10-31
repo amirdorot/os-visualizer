@@ -46,6 +46,21 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Right-to-left languages: code stays left-to-right, reading-order arrows mirror. */
+[dir="rtl"] pre,
+[dir="rtl"] code {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[dir="rtl"] pre {
+  text-align: left;
+}
+
+[dir="rtl"] svg[data-flip] {
+  scale: -1 1;
+}
+
 /* Presentation mode: larger type for projectors, no site navigation. */
 html.presenting {
   font-size: 118%;
