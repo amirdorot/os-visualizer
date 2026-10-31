@@ -5,7 +5,9 @@ import { topicById, topics } from '../data/topics'
 import { countCorrect, useProgress } from '../store/progress'
 import type { Question } from '../types'
 import { Icon } from './Icon'
+import { Practice } from './Practice'
 import { Quiz } from './Quiz'
+import { generators } from '../data/generators'
 import { cx } from '../lib/utils'
 
 export function TopicLayout({
@@ -69,6 +71,12 @@ export function TopicLayout({
       <div className="mt-8">
         <Quiz questions={questions} title={`${topic.title} quiz`} />
       </div>
+
+      {generators[topicId] && (
+        <div className="mt-6">
+          <Practice key={topicId} topics={[topicId]} title={`Unlimited ${topic.title.toLowerCase()} practice`} />
+        </div>
+      )}
 
       <nav className="mt-8 flex flex-wrap justify-between gap-3" aria-label="Topic navigation">
         {prev ? (

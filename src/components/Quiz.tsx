@@ -85,53 +85,79 @@ export function Quiz({
           </Button>
         </div>
       ) : (
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${round}-${q.id}`}
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.2 }}
-          >
-            {showTopic && <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-indigo-500">{showTopic(q)}</div>}
-            <p className="font-medium">{q.prompt}</p>
-            {q.scenario && (
-              <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-surface-2 p-3 font-mono text-sm">{q.scenario}</pre>
-            )}
-            <div className="mt-4">
-              <QuestionBody
-                key={`${round}-${q.id}`}
-                q={q}
-                answered={results[q.id] !== undefined ? { correct: results[q.id] } : null}
-                onSubmit={submit}
-              />
-            </div>
-            {results[q.id] !== undefined && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={cx(
-                  'mt-4 rounded-xl border p-3 text-sm',
-                  results[q.id] ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-rose-500/40 bg-rose-500/10',
-                )}
-              >
-                <div className="mb-1 flex items-center gap-1.5 font-semibold">
-                  <Icon name={results[q.id] ? 'check' : 'x'} className="size-4" />
-                  {results[q.id] ? 'Correct!' : 'Not quite.'}
-                </div>
-                <p className="text-muted">{q.explanation}</p>
-                <div className="mt-3 text-right">
-                  <Button variant="primary" onClick={() => setIndex((i) => i + 1)}>
-                    {index === questions.length - 1 ? 'See results' : 'Next question'}
-                    <Icon name="arrowRight" className="size-4" />
-                  </Button>
-                </div>
-              </motion.div>
-            )}
-          </motion.div>
-        </AnimatePresence>
+        <QuestionCard
+          cardKey={`${round}-${q.id}`}
+          q={q}
+          label={showTopic?.(q)}
+          result={results[q.id]}
+          onSubmit={submit}
+          onNext={() => setIndex((i) => i + 1)}
+          nextLabel={index === questions.length - 1 ? 'See results' : 'Next question'}
+        />
       )}
     </section>
+  )
+}
+
+/** One question with its answer controls and the feedback panel shown after answering. */
+export function QuestionCard({
+  cardKey,
+  q,
+  label,
+  result,
+  onSubmit,
+  onNext,
+  nextLabel,
+}: {
+  cardKey: string
+  q: Question
+  label?: string
+  result: boolean | undefined
+  onSubmit: (correct: boolean) => void
+  onNext: () => void
+  nextLabel: string
+}) {
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={cardKey}
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: -20 }}
+        transition={{ duration: 0.2 }}
+      >
+        {label && <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-indigo-500">{label}</div>}
+        <p className="font-medium">{q.prompt}</p>
+        {q.scenario && (
+          <pre className="mt-3 overflow-x-auto whitespace-pre-wrap rounded-xl bg-surface-2 p-3 font-mono text-sm">{q.scenario}</pre>
+        )}
+        <div className="mt-4">
+          <QuestionBody key={cardKey} q={q} answered={result !== undefined ? { correct: result } : null} onSubmit={onSubmit} />
+        </div>
+        {result !== undefined && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cx(
+              'mt-4 rounded-xl border p-3 text-sm',
+              result ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-rose-500/40 bg-rose-500/10',
+            )}
+          >
+            <div className="mb-1 flex items-center gap-1.5 font-semibold">
+              <Icon name={result ? 'check' : 'x'} className="size-4" />
+              {result ? 'Correct!' : 'Not quite.'}
+            </div>
+            <p className="whitespace-pre-line text-muted">{q.explanation}</p>
+            <div className="mt-3 text-right">
+              <Button variant="primary" onClick={onNext}>
+                {nextLabel}
+                <Icon name="arrowRight" className="size-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+    </AnimatePresence>
   )
 }
 

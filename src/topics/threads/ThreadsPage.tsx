@@ -17,6 +17,8 @@ import {
   stepThread,
   type RaceState,
 } from '../../engines/threads'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
 import { threadsQuiz } from './quiz'
 
@@ -277,7 +279,15 @@ function RaceLab() {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 grid gap-4">
+        <Challenges
+          items={challenges.threads}
+          met={{
+            'ch-thr-lose2': done && !s.useMutex && exp - s.counter >= 2,
+            'ch-thr-perfect': done && !s.useMutex && s.counter === exp && s.threads.length >= 2 && s.iterations >= 2,
+            'ch-thr-mutex': done && s.useMutex && s.threads.length >= 3,
+          }}
+        />
         {done ? (
           s.counter === exp ? (
             <Callout tone="good">

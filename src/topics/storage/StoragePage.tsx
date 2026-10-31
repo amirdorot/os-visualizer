@@ -21,7 +21,11 @@ import {
   type FileSystem,
   type FsResult,
 } from '../../engines/storage'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
+
+const pick = (...ids: string[]) => challenges.storage.filter((c) => ids.includes(c.id))
 import { storageQuiz } from './quiz'
 
 export default function StoragePage() {
@@ -84,7 +88,10 @@ function FileSystemLab() {
   const [name, setName] = useState('report.pdf')
   const [size, setSize] = useState(4)
   const [result, setResult] = useState<FsResult | null>(null)
+  const [growFailed, setGrowFailed] = useState(false)
   const sel = fs.inodes[selected]
+  const scattered =
+    method === 'linked' && Object.values(fs.inodes).some((n) => n.type === 'file' && n.blocks.some((b, i) => i > 0 && b !== n.blocks[i - 1] + 1))
 
   const apply = (r: FsResult, select?: number) => {
     setResult(r)
@@ -155,7 +162,14 @@ function FileSystemLab() {
           {sel && sel.id !== ROOT && (
             <div className="flex flex-wrap gap-2">
               {sel.type === 'file' && (
-                <Button size="sm" onClick={() => apply(appendBlock(fs, sel.id))}>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const r = appendBlock(fs, sel.id)
+                    if (!r.ok && method === 'contiguous') setGrowFailed(true)
+                    apply(r)
+                  }}
+                >
                   Append a block
                 </Button>
               )}
@@ -280,6 +294,7 @@ function FileSystemLab() {
           </div>
 
           {result && <Callout tone={result.ok ? 'good' : 'bad'}>{result.message}</Callout>}
+          <Challenges items={pick('ch-sto-grow', 'ch-sto-scatter')} met={{ 'ch-sto-grow': growFailed, 'ch-sto-scatter': scattered }} />
         </div>
       </div>
     </Card>
@@ -501,6 +516,9 @@ function DiskSchedulingLab() {
             </div>
           ))}
         </div>
+      </div>
+      <div className="mt-4">
+        <Challenges items={pick('ch-sto-sstf')} met={{ 'ch-sto-sstf': requests.length > 1 && compare[1].total * 3 < compare[0].total }} />
       </div>
     </Card>
   )

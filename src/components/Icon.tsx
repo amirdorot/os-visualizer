@@ -21,6 +21,13 @@ const paths: Record<string, string> = {
   grip: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
   arrowRight: 'M5 12h14M13 6l6 6-6 6',
   home: 'M3 11l9-8 9 8M5 10v10h14V10',
+  flag: 'M5 21V4M5 4h11l-2 4 2 4H5',
+  bolt: 'M13 2L4 14h7l-1 8 9-12h-7z',
+  lock: 'M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4',
+  cycle: 'M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3M18 3v4h-4M6 21v-4h4',
+  info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 11v6M12 7h.01',
+  chat: 'M4 5h16v11H8l-4 4z',
+  chevron: 'M6 9l6 6 6-6',
 }
 
 export function Icon({ name, className = 'size-5' }: { name: string; className?: string }) {

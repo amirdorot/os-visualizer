@@ -5,7 +5,10 @@ import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Card } from '../../components/ui'
 import { cx, inputClass } from '../../lib/utils'
-import { blockedReason, initialOS, INIT_PID, reduceOS, running, type OSState, type PCB, type PState, type ProcAction } from '../../engines/processes'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
+import { blockedReason, initialOS, INIT_PID, reduceOS, running, treeDepth, type OSState, type PCB, type PState, type ProcAction } from '../../engines/processes'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useSimulation } from '../../hooks/useSimulation'
 import { processesQuiz } from './quiz'
 
@@ -30,13 +33,13 @@ interface Arrow {
   ly: number
 }
 
-const arrows: Arrow[] = [
-  { id: 'admit', d: 'M 180 140 Q 200 175 230 210', label: 'admit', lx: 150, ly: 185 },
-  { id: 'dispatch', d: 'M 430 255 L 570 255', label: 'dispatch', lx: 500, ly: 245 },
-  { id: 'timeout', d: 'M 570 320 L 430 320', label: 'interrupt', lx: 500, ly: 340 },
-  { id: 'block', d: 'M 700 360 Q 690 440 640 470', label: 'I/O or wait()', lx: 745, ly: 430 },
-  { id: 'wake', d: 'M 360 470 Q 300 440 290 360', label: 'I/O done / child exit', lx: 225, ly: 430 },
-  { id: 'exit', d: 'M 780 210 Q 820 175 840 140', label: 'exit()', lx: 860, ly: 185 },
+const arrows: (Arrow & { from: PState; to: PState })[] = [
+  { id: 'admit', d: 'M 180 140 Q 200 175 230 210', label: 'admit', lx: 150, ly: 185, from: 'new', to: 'ready' },
+  { id: 'dispatch', d: 'M 430 255 L 570 255', label: 'dispatch', lx: 500, ly: 245, from: 'ready', to: 'running' },
+  { id: 'timeout', d: 'M 570 320 L 430 320', label: 'interrupt', lx: 500, ly: 340, from: 'running', to: 'ready' },
+  { id: 'block', d: 'M 700 360 Q 690 440 640 470', label: 'I/O or wait()', lx: 745, ly: 430, from: 'running', to: 'waiting' },
+  { id: 'wake', d: 'M 360 470 Q 300 440 290 360', label: 'I/O done / child exit', lx: 225, ly: 430, from: 'waiting', to: 'ready' },
+  { id: 'exit', d: 'M 780 210 Q 820 175 840 140', label: 'exit()', lx: 860, ly: 185, from: 'running', to: 'terminated' },
 ]
 
 function arrowFor(a: ProcAction, prev: OSState, next: OSState): string | null {
@@ -131,6 +134,19 @@ export default function ProcessesPage() {
           </div>
           <div className="grid content-start gap-4">
             <Actions os={os} sel={sel} act={act} program={program} setProgram={setProgram} />
+            <Challenges
+              items={challenges.processes}
+              met={{
+                'ch-proc-zombie': os.stats.zombies > 0,
+                'ch-proc-reap': os.stats.reaped > 0,
+                'ch-proc-orphan': os.stats.orphans > 0,
+                'ch-proc-tree': treeDepth(os) >= 3,
+                'ch-proc-shell': os.procs.some((p) => {
+                  const parent = os.procs.find((x) => x.pid === p.ppid)
+                  return !!parent && parent.program !== p.program
+                }),
+              }}
+            />
           </div>
         </div>
       </Card>
@@ -183,6 +199,43 @@ function StateDiagram({
   highlighted: string | null
   animKey: number
 }) {
+  const narrow = useMediaQuery('(max-width: 639px)')
+  const tokens = (state: PState) =>
+    os.procs.filter((p) => p.state === state).map((p) => <ProcToken key={p.pid} p={p} selected={selected === p.pid} onSelect={onSelect} />)
+
+  if (narrow) {
+    const last = arrows.find((a) => a.id === highlighted)
+    const order: PState[] = ['new', 'terminated', 'ready', 'running', 'waiting']
+    return (
+      <div className="grid gap-2">
+        <div className="grid grid-cols-2 gap-2">
+          {order.map((state) => {
+            const b = boxes[state]
+            const hot = last && (last.to === state || last.from === state)
+            return (
+              <div key={state} className={cx('flex min-h-24 flex-col rounded-2xl border-2 p-2', b.tone, state === 'waiting' && 'col-span-2', hot && 'ring-2 ring-violet-500')}>
+                <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider">
+                  {b.label}
+                  {state === 'running' && <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] text-white">CPU</span>}
+                </div>
+                <div className="mt-1 flex flex-1 flex-wrap content-start gap-1.5">{tokens(state)}</div>
+              </div>
+            )
+          })}
+        </div>
+        <p className="rounded-xl bg-surface-2 px-3 py-2 text-sm" aria-live="polite">
+          {last ? (
+            <>
+              Last transition: <strong>{boxes[last.from].label}</strong> to <strong>{boxes[last.to].label}</strong> ({last.label})
+            </>
+          ) : (
+            <span className="text-muted">Transitions: New to Ready (admit), Ready to Running (dispatch), Running to Ready (interrupt), Running to Waiting (I/O), Waiting to Ready (I/O done), Running to Terminated (exit).</span>
+          )}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <div className="relative mx-auto aspect-[1000/570] w-full min-w-[620px] max-w-[900px]">
       <svg viewBox="0 0 1000 570" className="absolute inset-0 size-full" aria-hidden="true">
@@ -218,7 +271,6 @@ function StateDiagram({
       </svg>
       {(Object.keys(boxes) as PState[]).map((state) => {
         const b = boxes[state]
-        const procs = os.procs.filter((p) => p.state === state)
         return (
           <div
             key={state}
@@ -229,36 +281,37 @@ function StateDiagram({
               {b.label}
               {state === 'running' && <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[10px] text-white">CPU</span>}
             </div>
-            <div className="mt-1 flex flex-1 flex-wrap content-start gap-1.5">
-              {procs.map((p) => (
-                <motion.button
-                  key={p.pid}
-                  layoutId={`proc-${p.pid}`}
-                  type="button"
-                  onClick={() => onSelect(p.pid)}
-                  transition={{ type: 'spring', stiffness: 260, damping: 26 }}
-                  aria-pressed={selected === p.pid}
-                  aria-label={`PID ${p.pid} ${p.program}, ${p.state}`}
-                  className={cx(
-                    'rounded-lg border px-2 py-1 text-left font-mono text-xs shadow-sm',
-                    selected === p.pid ? 'border-violet-500 bg-violet-600 text-white' : 'border-line bg-surface',
-                    p.state === 'terminated' && 'opacity-80',
-                  )}
-                >
-                  <div className="font-bold">{p.pid}</div>
-                  <div className="opacity-80">
-                    {p.program}
-                    {p.state === 'terminated' && ' (zombie)'}
-                    {p.waitingFor === 'child' && ' (wait)'}
-                    {p.waitingFor === 'io' && ' (I/O)'}
-                  </div>
-                </motion.button>
-              ))}
-            </div>
+            <div className="mt-1 flex flex-1 flex-wrap content-start gap-1.5">{tokens(state)}</div>
           </div>
         )
       })}
     </div>
+  )
+}
+
+function ProcToken({ p, selected, onSelect }: { p: PCB; selected: boolean; onSelect: (pid: number) => void }) {
+  return (
+    <motion.button
+      layoutId={`proc-${p.pid}`}
+      type="button"
+      onClick={() => onSelect(p.pid)}
+      transition={{ type: 'spring', stiffness: 260, damping: 26 }}
+      aria-pressed={selected}
+      aria-label={`PID ${p.pid} ${p.program}, ${p.state}`}
+      className={cx(
+        'rounded-lg border px-2 py-1 text-left font-mono text-xs shadow-sm',
+        selected ? 'border-violet-500 bg-violet-600 text-white' : 'border-line bg-surface',
+        p.state === 'terminated' && 'opacity-80',
+      )}
+    >
+      <div className="font-bold">{p.pid}</div>
+      <div className="opacity-80">
+        {p.program}
+        {p.state === 'terminated' && ' (zombie)'}
+        {p.waitingFor === 'child' && ' (wait)'}
+        {p.waitingFor === 'io' && ' (I/O)'}
+      </div>
+    </motion.button>
   )
 }
 

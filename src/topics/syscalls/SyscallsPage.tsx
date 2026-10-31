@@ -6,6 +6,8 @@ import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Callout, Card, Segmented } from '../../components/ui'
 import { cx } from '../../lib/utils'
 import { layers, syscallSteps, type SyscallName } from '../../engines/syscalls'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
 import { syscallsQuiz } from './quiz'
 
@@ -161,6 +163,10 @@ function SyscallWalkthrough() {
               ))}
             </dl>
           </div>
+          <Challenges
+            items={challenges.syscalls.filter((c) => c.id !== 'ch-sys-break')}
+            met={{ 'ch-sys-read': name === 'read' && i === steps.length - 1, 'ch-sys-block': step.processState === 'waiting' }}
+          />
         </div>
       </div>
     </Card>
@@ -203,6 +209,9 @@ function PrivilegeDemo() {
           )}
         </motion.div>
       </AnimatePresence>
+      <div className="mt-4">
+        <Challenges items={challenges.syscalls.filter((c) => c.id === 'ch-sys-break')} met={{ 'ch-sys-break': attempt === 'cli' || attempt === 'kernel' }} />
+      </div>
     </Card>
   )
 }

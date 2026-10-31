@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { cx } from '../lib/utils'
+import { challenges } from '../data/challenges'
 import { quizzes } from '../data/quizzes'
 import { topicById, topics } from '../data/topics'
 import { countCorrect, useProgress } from '../store/progress'
@@ -41,6 +42,7 @@ function Layer({ label, tone, children, delay }: { label: string; tone: string; 
 
 export function Home() {
   const answers = useProgress((s) => s.answers)
+  const challengesDone = useProgress((s) => s.challenges)
   const resetAll = useProgress((s) => s.resetAll)
   const total = Object.values(quizzes).flat().length
   const mastered = countCorrect(answers, Object.values(quizzes).flat().map((q) => q.id))
@@ -96,6 +98,8 @@ export function Home() {
             <LayerBlock to="memory" title="Memory manager" sub="paging, virtual memory" />
             <LayerBlock to="storage" title="File system" sub="inodes, directories" />
             <LayerBlock to="processes" title="Process manager" sub="PCBs, fork, exit" />
+            <LayerBlock to="sync" title="Synchronization" sub="semaphores, wait queues" />
+            <LayerBlock to="deadlock" title="Resource manager" sub="deadlock avoidance" />
             <LayerBlock to="storage" title="Device drivers" sub="disk I/O scheduling" />
           </Layer>
           <Layer label="Hardware" tone="border-slate-500/30 bg-slate-500/5" delay={0.25}>
@@ -109,7 +113,7 @@ export function Home() {
       <section>
         <div className="mb-4 flex items-end justify-between gap-3">
           <h2 className="text-2xl font-bold tracking-tight">Topics</h2>
-          {mastered > 0 && (
+          {(mastered > 0 || Object.keys(challengesDone).length > 0) && (
             <button type="button" onClick={resetAll} className="text-xs text-muted underline hover:text-ink">
               Reset all progress
             </button>
@@ -119,7 +123,9 @@ export function Home() {
           {topics.map((t, i) => {
             const qs = quizzes[t.id]
             const done = countCorrect(answers, qs.map((q) => q.id))
-            const complete = done === qs.length
+            const chs = challenges[t.id] ?? []
+            const chDone = chs.filter((c) => challengesDone[c.id]).length
+            const complete = done === qs.length && chDone === chs.length
             return (
               <motion.div key={t.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 * i }} whileHover={{ y: -4 }}>
                 <Link to={t.path} className="group relative flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-surface p-5 shadow-sm hover:shadow-lg">
@@ -132,7 +138,7 @@ export function Home() {
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
                         <Icon name="check" className="size-3.5" /> Mastered
                       </span>
-                    ) : done > 0 ? (
+                    ) : done + chDone > 0 ? (
                       <span className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-semibold text-amber-600 dark:text-amber-400">In progress</span>
                     ) : (
                       <span className="rounded-full bg-surface-2 px-2.5 py-1 text-xs font-semibold text-muted">New</span>
@@ -142,16 +148,23 @@ export function Home() {
                     {i + 1}. {t.title}
                   </h3>
                   <p className="mt-1 flex-1 text-sm text-muted">{t.tagline}</p>
-                  <div className="mt-4">
-                    <div className="mb-1 flex justify-between text-xs text-muted">
-                      <span>Quiz</span>
-                      <span className="font-mono">
-                        {done}/{qs.length}
-                      </span>
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
-                      <div className={cx('h-full rounded-full', t.accent.bg)} style={{ width: `${(done / qs.length) * 100}%` }} />
-                    </div>
+                  <div className="mt-4 grid gap-2">
+                    {[
+                      ['Quiz', done, qs.length],
+                      ['Challenges', chDone, chs.length],
+                    ].map(([label, n, of]) => (
+                      <div key={label}>
+                        <div className="mb-1 flex justify-between text-xs text-muted">
+                          <span>{label}</span>
+                          <span className="font-mono">
+                            {n}/{of}
+                          </span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+                          <div className={cx('h-full rounded-full', t.accent.bg)} style={{ width: `${of ? (Number(n) / Number(of)) * 100 : 0}%` }} />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </Link>
               </motion.div>
@@ -162,9 +175,9 @@ export function Home() {
 
       <section className="mt-12 grid gap-4 md:grid-cols-3">
         {[
-          ['Play', 'Each topic has live simulations. Change the inputs, press play, step forward and backward in time.'],
+          ['Play', 'Each topic has live simulations with challenges that are checked automatically. Change the inputs, press play, step forward and backward in time.'],
           ['Explain', 'Hover underlined terms for definitions, and read the event log to see what the kernel is doing and why.'],
-          ['Check', 'Finish each topic with a quiz: multiple choice, predict-the-result and drag-to-order, with instant feedback.'],
+          ['Check', 'Finish each topic with a quiz, then keep practicing with unlimited generated problems. Review your mistakes in the Quiz Hub.'],
         ].map(([title, text], i) => (
           <div key={title} className="rounded-2xl border border-line bg-surface p-5">
             <div className="mb-2 font-mono text-sm text-indigo-500">0{i + 1}</div>

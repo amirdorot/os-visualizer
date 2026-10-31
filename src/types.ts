@@ -32,6 +32,12 @@ export interface OrderQuestion {
 
 export type Question = McqQuestion | PredictQuestion | OrderQuestion
 
+export interface ChallengeMeta {
+  id: string
+  title: string
+  hint: string
+}
+
 export interface Accent {
   text: string
   bg: string

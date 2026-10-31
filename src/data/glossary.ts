@@ -135,4 +135,44 @@ export const glossary: Record<string, GlossaryEntry> = {
     definition: 'A synchronous, deliberate transfer of control to the kernel (e.g. the syscall instruction), which also switches the CPU to kernel mode.',
     topic: 'syscalls',
   },
+  semaphore: {
+    term: 'Semaphore',
+    definition: 'An integer counter with two atomic operations: wait() (also called P or down) decrements it, blocking while it is 0, and signal() (V or up) increments it, waking a waiting thread.',
+    topic: 'sync',
+  },
+  boundedbuffer: {
+    term: 'Bounded buffer',
+    definition: 'A fixed-size queue shared by producers, which add items, and consumers, which remove them. The classic producer-consumer problem.',
+    topic: 'sync',
+  },
+  busywait: {
+    term: 'Busy waiting',
+    definition: 'Repeatedly checking a condition in a loop (spinning) instead of blocking. It wastes CPU time unless the wait is very short.',
+    topic: 'sync',
+  },
+  deadlock: {
+    term: 'Deadlock',
+    definition: 'A set of processes each waiting for a resource held by another process in the set, so none of them can ever proceed.',
+    topic: 'deadlock',
+  },
+  coffman: {
+    term: 'Coffman conditions',
+    definition: 'The four conditions that must all hold for deadlock: mutual exclusion, hold and wait, no preemption, and circular wait. Breaking any one prevents deadlock.',
+    topic: 'deadlock',
+  },
+  rag: {
+    term: 'Resource allocation graph',
+    definition: 'A graph with an edge from a process to a resource it requests and from a resource to the process holding it. With one instance per resource, a cycle means deadlock.',
+    topic: 'deadlock',
+  },
+  safestate: {
+    term: 'Safe state',
+    definition: 'A state in which there is some order (a safe sequence) in which every process can obtain its maximum demand and finish. Unsafe states may lead to deadlock.',
+    topic: 'deadlock',
+  },
+  banker: {
+    term: "Banker's algorithm",
+    definition: 'Deadlock avoidance by Dijkstra: grant a request only if the resulting state is still safe, using each process\'s declared maximum demand.',
+    topic: 'deadlock',
+  },
 }

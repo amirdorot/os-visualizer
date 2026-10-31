@@ -12,11 +12,29 @@ export interface PCB {
   openFiles: string[]
 }
 
+export interface OSStats {
+  forks: number
+  execs: number
+  zombies: number
+  reaped: number
+  orphans: number
+  ioCompleted: number
+}
+
 export interface OSState {
   procs: PCB[]
   nextPid: number
   log: { text: string; tone: 'info' | 'good' | 'bad' }[]
   lastEvent: string | null
+  stats: OSStats
+}
+
+export function treeDepth(s: OSState): number {
+  const depth = (pid: number): number => {
+    const p = s.procs.find((x) => x.pid === pid)
+    return !p || p.ppid === INIT_PID ? 1 : 1 + depth(p.ppid)
+  }
+  return Math.max(0, ...s.procs.map((p) => depth(p.pid)))
 }
 
 export type ProcAction =
@@ -42,7 +60,12 @@ export function initialOS(): OSState {
     nextPid: 101,
     log: [{ text: 'System booted. init (PID 1) started bash (PID 100), which is ready to run.', tone: 'info' }],
     lastEvent: null,
+    stats: { forks: 0, execs: 0, zombies: 0, reaped: 0, orphans: 0, ioCompleted: 0 },
   }
+}
+
+function bump(s: OSState, key: keyof OSStats, by = 1): OSState {
+  return by === 0 ? s : { ...s, stats: { ...s.stats, [key]: s.stats[key] + by } }
 }
 
 export function running(s: OSState): PCB | undefined {
@@ -109,10 +132,10 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
     case 'io':
       return log(update(s, r.pid, { state: 'waiting', waitingFor: 'io' }), `PID ${r.pid} requested disk I/O and is now Waiting (blocked). The CPU is free.`)
     case 'ioDone':
-      return log(update(s, a.pid, { state: 'ready', waitingFor: null }), `I/O completed: an interrupt moves PID ${a.pid} back to Ready.`, 'good')
+      return log(bump(update(s, a.pid, { state: 'ready', waitingFor: null }), 'ioCompleted'), `I/O completed: an interrupt moves PID ${a.pid} back to Ready.`, 'good')
     case 'fork': {
       const child: PCB = { ...r, pid: s.nextPid, ppid: r.pid, state: 'ready', cpuTime: 0, waitingFor: null }
-      const next = { ...s, procs: [...s.procs, child], nextPid: s.nextPid + 1 }
+      const next = bump({ ...s, procs: [...s.procs, child], nextPid: s.nextPid + 1 }, 'forks')
       return log(
         next,
         `PID ${r.pid} called fork(). Child PID ${child.pid} is a copy (same program "${r.program}", same PC, same open files). fork() returned ${child.pid} to the parent and 0 to the child.`,
@@ -121,7 +144,7 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
     }
     case 'exec':
       return log(
-        update(s, r.pid, { program: a.program, pc: 0x1000 }),
+        bump(update(s, r.pid, { program: a.program, pc: 0x1000 }), 'execs'),
         `PID ${r.pid} called exec("${a.program}"). Its code, data and stack were replaced; the PID and open files stay the same.`,
       )
     case 'wait': {
@@ -129,13 +152,13 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
       if (children.length === 0) return log(s, `PID ${r.pid} called wait() but has no children: it returns -1 immediately.`, 'bad')
       const zombie = children.find((c) => c.state === 'terminated')
       if (zombie) {
-        return log(remove(s, zombie.pid), `PID ${r.pid} called wait() and reaped zombie child ${zombie.pid} immediately. Its PCB is freed.`, 'good')
+        return log(bump(remove(s, zombie.pid), 'reaped'), `PID ${r.pid} called wait() and reaped zombie child ${zombie.pid} immediately. Its PCB is freed.`, 'good')
       }
       return log(update(s, r.pid, { state: 'waiting', waitingFor: 'child' }), `PID ${r.pid} called wait() and blocks until one of its children exits.`)
     }
     case 'exit': {
-      let next = s
       const orphans = s.procs.filter((p) => p.ppid === r.pid)
+      let next = bump(s, 'orphans', orphans.filter((o) => o.state !== 'terminated').length)
       for (const o of orphans) next = update(next, o.pid, { ppid: INIT_PID })
       for (const o of orphans.filter((o) => o.state === 'terminated')) next = remove(next, o.pid)
       const parent = s.procs.find((p) => p.pid === r.ppid)
@@ -148,7 +171,7 @@ export function reduceOS(s: OSState, a: ProcAction): OSState {
         next = update(remove(next, r.pid), parent.pid, { state: 'ready', waitingFor: null })
         return log(next, `PID ${r.pid} exited. Its parent ${parent.pid} was waiting, so it collects the exit status and becomes Ready.${orphanNote}`, 'good')
       }
-      next = update(next, r.pid, { state: 'terminated', openFiles: [] })
+      next = bump(update(next, r.pid, { state: 'terminated', openFiles: [] }), 'zombies')
       return log(next, `PID ${r.pid} exited, but parent ${parent.pid} has not called wait(). It is now a zombie.${orphanNote}`, 'bad')
     }
   }

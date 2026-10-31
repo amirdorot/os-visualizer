@@ -17,6 +17,8 @@ import {
   type PageTableEntry,
   type ReplaceAlgo,
 } from '../../engines/memory'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
 import { memoryQuiz } from './quiz'
 
@@ -56,6 +58,9 @@ export default function MemoryPage() {
 const PAGES = 8
 const FRAMES = 8
 
+const pick = (...ids: string[]) => challenges.memory.filter((c) => ids.includes(c.id))
+const fifoFaults = (refs: number[], frames: number) => pageReplacement(refs, frames, 'FIFO').at(-1)?.faults ?? 0
+
 function initialTable(): PageTableEntry[] {
   return [
     { frame: 3, valid: true },
@@ -83,6 +88,7 @@ function AddressTranslation() {
   const tr = valid ? translate(parsed, pageSize, table) : null
   const used = new Set(table.filter((e) => e.valid).map((e) => e.frame))
   const [lastLoaded, setLastLoaded] = useState<number | null>(null)
+  const [handledFault, setHandledFault] = useState(false)
 
   const handleFault = () => {
     if (!tr || !tr.fault) return
@@ -96,6 +102,7 @@ function AddressTranslation() {
     next[tr.page] = { frame, valid: true }
     setTable(next)
     setLastLoaded(tr.page)
+    setHandledFault(true)
   }
 
   const togglePage = (i: number) => {
@@ -239,6 +246,9 @@ function AddressTranslation() {
             </Callout>
           )
         )}
+      </div>
+      <div className="mt-4">
+        <Challenges items={pick('ch-mem-fault')} met={{ 'ch-mem-fault': handledFault }} />
       </div>
     </Card>
   )
@@ -427,6 +437,15 @@ function PageReplacementLab() {
           ))}
         </div>
       </div>
+      <div className="mt-4">
+        <Challenges
+          items={pick('ch-mem-lru', 'ch-mem-belady')}
+          met={{
+            'ch-mem-lru': totals[0].faults - totals[1].faults >= 4,
+            'ch-mem-belady': algo === 'FIFO' && fifoFaults(refs, frames + 1) > fifoFaults(refs, frames),
+          }}
+        />
+      </div>
     </Card>
   )
 }
@@ -447,6 +466,7 @@ function AllocationLab() {
   const [counter, setCounter] = useState(1)
   const [message, setMessage] = useState<{ tone: 'good' | 'bad' | 'info'; text: string } | null>(null)
   const [candidates, setCandidates] = useState<{ starts: number[]; chosen: number | null }>({ starts: [], chosen: null })
+  const [fragFailure, setFragFailure] = useState(false)
   const frag = fragmentation(blocks)
 
   const doAlloc = () => {
@@ -454,6 +474,7 @@ function AllocationLab() {
     const res = allocate(blocks, name, size, strategy)
     setCandidates({ starts: res.candidates.map((i) => blocks[i].start), chosen: res.chosen === null ? null : blocks[res.chosen].start })
     if (!res.ok) {
+      if (frag.totalFree >= size) setFragFailure(true)
       setMessage({
         tone: 'bad',
         text:
@@ -572,6 +593,9 @@ function AllocationLab() {
           <Stat label="Largest hole" value={`${frag.largest}K`} />
           <Stat label="Ext. frag" value={`${Math.round(frag.external * 100)}%`} hint="1 - largest hole / total free" />
         </div>
+      </div>
+      <div className="mt-4">
+        <Challenges items={pick('ch-mem-frag')} met={{ 'ch-mem-frag': fragFailure }} />
       </div>
     </Card>
   )

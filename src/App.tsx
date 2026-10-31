@@ -1,5 +1,5 @@
 import { lazy, Suspense, type ReactNode } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router-dom'
+import { createBrowserRouter, Link, RouterProvider } from 'react-router-dom'
 import { Layout } from './components/Layout'
 import { Home } from './pages/Home'
 
@@ -9,6 +9,9 @@ const SchedulingPage = lazy(() => import('./topics/scheduling/SchedulingPage'))
 const MemoryPage = lazy(() => import('./topics/memory/MemoryPage'))
 const StoragePage = lazy(() => import('./topics/storage/StoragePage'))
 const SyscallsPage = lazy(() => import('./topics/syscalls/SyscallsPage'))
+const SyncPage = lazy(() => import('./topics/sync/SyncPage'))
+const DeadlockPage = lazy(() => import('./topics/deadlock/DeadlockPage'))
+const AboutPage = lazy(() => import('./pages/AboutPage'))
 const QuizHub = lazy(() => import('./pages/QuizHub'))
 const GlossaryPage = lazy(() => import('./pages/GlossaryPage'))
 
@@ -28,15 +31,22 @@ const router = createBrowserRouter([
       { index: true, element: <Home /> },
       { path: 'processes', element: wrap(<ProcessesPage />) },
       { path: 'threads', element: wrap(<ThreadsPage />) },
+      { path: 'sync', element: wrap(<SyncPage />) },
+      { path: 'deadlock', element: wrap(<DeadlockPage />) },
       { path: 'scheduling', element: wrap(<SchedulingPage />) },
       { path: 'memory', element: wrap(<MemoryPage />) },
       { path: 'storage', element: wrap(<StoragePage />) },
       { path: 'syscalls', element: wrap(<SyscallsPage />) },
       { path: 'quiz', element: wrap(<QuizHub />) },
       { path: 'glossary', element: wrap(<GlossaryPage />) },
+      { path: 'about', element: wrap(<AboutPage />) },
       {
         path: '*',
-        element: <div className="p-12 text-center text-muted">Page not found.</div>,
+        element: (
+          <div className="p-12 text-center text-muted">
+            Page not found. <Link to="/" className="underline">Go to the overview</Link>
+          </div>
+        ),
       },
     ],
   },

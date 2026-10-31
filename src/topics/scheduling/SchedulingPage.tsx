@@ -7,6 +7,8 @@ import { Button, Callout, Card, Segmented, Stat } from '../../components/ui'
 import { cx, inputClass } from '../../lib/utils'
 import { colorFor } from '../../data/palette'
 import { simulate, type Job, type SchedAlgo, type Tick } from '../../engines/scheduler'
+import { Challenges } from '../../components/Challenges'
+import { challenges } from '../../data/challenges'
 import { useSimulation } from '../../hooks/useSimulation'
 import { schedulingQuiz } from './quiz'
 
@@ -75,6 +77,19 @@ export default function SchedulingPage() {
   const isLast = t === schedule.ticks.length - 1
   const filled = isLast ? t : t + 1
   const jobById = (id: string) => jobs.find((j) => j.id === id)!
+
+  const met = useMemo((): Record<string, boolean> => {
+    if (jobs.length === 0) return {}
+    const fcfs = simulate(jobs, 'FCFS').avgWaiting
+    const sjf = simulate(jobs, 'SJF').avgWaiting
+    const runs = schedule.segments.filter((s) => s.id !== null).map((s) => s.id)
+    return {
+      'ch-sched-rr-beats': algo === 'RR' && schedule.avgWaiting < fcfs - 1e-9,
+      'ch-sched-convoy': jobs.length >= 3 && fcfs > 0 && fcfs >= 3 * sjf,
+      'ch-sched-switches': schedule.contextSwitches >= 8,
+      'ch-sched-srtf': algo === 'SRTF' && new Set(runs).size < runs.length,
+    }
+  }, [jobs, algo, schedule])
 
   const addJob = (p: (typeof pool)[number]) => {
     if (jobs.length >= 8) return
@@ -146,6 +161,9 @@ export default function SchedulingPage() {
             <StatsTable schedule={schedule} filled={filled} ids={ids} jobs={jobs} />
           </div>
         )}
+        <div className="mt-5">
+          <Challenges items={challenges.scheduling} met={met} />
+        </div>
       </Card>
     </TopicLayout>
   )
