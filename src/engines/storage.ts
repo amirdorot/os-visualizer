@@ -25,10 +25,28 @@ export interface FileSystem {
   nextInode: number
 }
 
+export type FsMsg =
+  | { k: 'emptyName' }
+  | { k: 'exists'; name: string }
+  | { k: 'mkdir'; path: string; inode: number }
+  | { k: 'noRun'; size: number }
+  | { k: 'fragmented'; size: number; free: number }
+  | { k: 'diskFull'; need: number; free: number }
+  | { k: 'indexLimit'; max: number }
+  | { k: 'diskFullIndexed'; need: number }
+  | { k: 'created'; path: string; inode: number; method: AllocMethod; blocks: number[]; indexBlock: number | null }
+  | { k: 'selectFile' }
+  | { k: 'cannotGrow'; name: string; block: number }
+  | { k: 'full' }
+  | { k: 'indexFull'; max: number }
+  | { k: 'appended'; name: string; block: number }
+  | { k: 'deleteRoot' }
+  | { k: 'deleted'; path: string; freed: number }
+
 export interface FsResult {
   fs: FileSystem
   ok: boolean
-  message: string
+  msg: FsMsg
   touched: number[]
 }
 
@@ -82,18 +100,18 @@ function clone(fs: FileSystem): FileSystem {
 }
 
 export function mkdir(fs: FileSystem, parent: number, name: string): FsResult {
-  if (!name) return { fs, ok: false, message: 'Name cannot be empty.', touched: [] }
-  if (nameTaken(fs, parent, name)) return { fs, ok: false, message: `"${name}" already exists here.`, touched: [] }
+  if (!name) return { fs, ok: false, msg: { k: 'emptyName' }, touched: [] }
+  if (nameTaken(fs, parent, name)) return { fs, ok: false, msg: { k: 'exists', name }, touched: [] }
   const f = clone(fs)
   const id = f.nextInode++
   f.inodes[id] = { id, name, type: 'dir', blocks: [], indexBlock: null, parent, children: [] }
   f.inodes[parent].children.push(id)
-  return { fs: f, ok: true, message: `Created directory ${pathOf(f, id)} (inode ${id}). A directory is a list of name -> inode entries.`, touched: [] }
+  return { fs: f, ok: true, msg: { k: 'mkdir', path: pathOf(f, id), inode: id }, touched: [] }
 }
 
 export function createFile(fs: FileSystem, parent: number, name: string, size: number): FsResult {
-  if (!name) return { fs, ok: false, message: 'Name cannot be empty.', touched: [] }
-  if (nameTaken(fs, parent, name)) return { fs, ok: false, message: `"${name}" already exists here.`, touched: [] }
+  if (!name) return { fs, ok: false, msg: { k: 'emptyName' }, touched: [] }
+  if (nameTaken(fs, parent, name)) return { fs, ok: false, msg: { k: 'exists', name }, touched: [] }
   const free = freeBlocks(fs)
   let blocks: number[] = []
   let indexBlock: number | null = null
@@ -104,17 +122,17 @@ export function createFile(fs: FileSystem, parent: number, name: string, size: n
       return {
         fs,
         ok: false,
-        message: `No run of ${size} consecutive free blocks${free.length >= size ? ` (even though ${free.length} blocks are free: external fragmentation)` : ''}.`,
+        msg: free.length >= size ? { k: 'fragmented', size, free: free.length } : { k: 'noRun', size },
         touched: [],
       }
     }
     blocks = Array.from({ length: size }, (_, i) => start + i)
   } else if (fs.method === 'linked') {
-    if (free.length < size) return { fs, ok: false, message: `Disk full: need ${size} blocks, ${free.length} free.`, touched: [] }
+    if (free.length < size) return { fs, ok: false, msg: { k: 'diskFull', need: size, free: free.length }, touched: [] }
     blocks = free.slice(0, size)
   } else {
-    if (size > MAX_INDEX) return { fs, ok: false, message: `An index block in this demo holds at most ${MAX_INDEX} pointers.`, touched: [] }
-    if (free.length < size + 1) return { fs, ok: false, message: `Disk full: need ${size} data blocks plus 1 index block.`, touched: [] }
+    if (size > MAX_INDEX) return { fs, ok: false, msg: { k: 'indexLimit', max: MAX_INDEX }, touched: [] }
+    if (free.length < size + 1) return { fs, ok: false, msg: { k: 'diskFullIndexed', need: size }, touched: [] }
     indexBlock = free[0]
     blocks = free.slice(1, size + 1)
   }
@@ -127,23 +145,17 @@ export function createFile(fs: FileSystem, parent: number, name: string, size: n
   if (indexBlock !== null) f.disk[indexBlock] = id
   if (fs.method === 'linked') blocks.forEach((b, i) => (f.next[b] = blocks[i + 1] ?? -1))
 
-  const detail =
-    fs.method === 'contiguous'
-      ? `blocks ${blocks[0]}-${blocks[blocks.length - 1]}`
-      : fs.method === 'linked'
-        ? `a chain starting at block ${blocks[0]}`
-        : `index block ${indexBlock} pointing to [${blocks.join(', ')}]`
   return {
     fs: f,
     ok: true,
-    message: `Created ${pathOf(f, id)}: inode ${id}, ${detail}. The free-block bitmap was updated.`,
+    msg: { k: 'created', path: pathOf(f, id), inode: id, method: fs.method, blocks, indexBlock },
     touched: indexBlock === null ? blocks : [indexBlock, ...blocks],
   }
 }
 
 export function appendBlock(fs: FileSystem, id: number): FsResult {
   const node = fs.inodes[id]
-  if (!node || node.type !== 'file') return { fs, ok: false, message: 'Select a file first.', touched: [] }
+  if (!node || node.type !== 'file') return { fs, ok: false, msg: { k: 'selectFile' }, touched: [] }
   const free = freeBlocks(fs)
   let block: number
 
@@ -153,15 +165,15 @@ export function appendBlock(fs: FileSystem, id: number): FsResult {
       return {
         fs,
         ok: false,
-        message: `Cannot grow ${node.name} in place: block ${after} is not free. Contiguous files must be moved to a larger hole to grow.`,
+        msg: { k: 'cannotGrow', name: node.name, block: after },
         touched: [],
       }
     }
     block = after
   } else {
-    if (free.length === 0) return { fs, ok: false, message: 'Disk full.', touched: [] }
+    if (free.length === 0) return { fs, ok: false, msg: { k: 'full' }, touched: [] }
     if (fs.method === 'indexed' && node.blocks.length >= MAX_INDEX) {
-      return { fs, ok: false, message: `The index block is full (${MAX_INDEX} pointers). Real file systems add indirect blocks.`, touched: [] }
+      return { fs, ok: false, msg: { k: 'indexFull', max: MAX_INDEX }, touched: [] }
     }
     block = free[0]
   }
@@ -174,11 +186,11 @@ export function appendBlock(fs: FileSystem, id: number): FsResult {
     if (last !== undefined) f.next[last] = block
     f.next[block] = -1
   }
-  return { fs: f, ok: true, message: `Wrote one more block to ${node.name}: block ${block}.`, touched: [block] }
+  return { fs: f, ok: true, msg: { k: 'appended', name: node.name, block }, touched: [block] }
 }
 
 export function remove(fs: FileSystem, id: number): FsResult {
-  if (id === ROOT) return { fs, ok: false, message: 'Cannot delete the root directory.', touched: [] }
+  if (id === ROOT) return { fs, ok: false, msg: { k: 'deleteRoot' }, touched: [] }
   const f = clone(fs)
   const touched: number[] = []
   const drop = (nid: number) => {
@@ -199,7 +211,7 @@ export function remove(fs: FileSystem, id: number): FsResult {
   return {
     fs: f,
     ok: true,
-    message: `Deleted ${path}. Its directory entry and inode were removed and ${touched.length} block(s) marked free. (The data itself is not erased!)`,
+    msg: { k: 'deleted', path, freed: touched.length },
     touched,
   }
 }

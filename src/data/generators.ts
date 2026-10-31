@@ -6,6 +6,13 @@ import { diskSchedule, type DiskAlgo } from '../engines/storage'
 import { initialRace, opText, program, stepThread } from '../engines/threads'
 import { pick, type Locale } from '../i18n'
 import { processesGenText } from '../topics/processes/content'
+import * as threadsContent from '../topics/threads/content'
+import * as syncContent from '../topics/sync/content'
+import * as deadlockContent from '../topics/deadlock/content'
+import * as schedulingContent from '../topics/scheduling/content'
+import * as memoryContent from '../topics/memory/content'
+import * as storageContent from '../topics/storage/content'
+import * as syscallsContent from '../topics/syscalls/content'
 import type { Question } from '../types'
 
 export type Rng = () => number
@@ -31,13 +38,7 @@ function mcq(rng: Rng, prefix: string, prompt: string, correct: string, wrong: s
 
 // ---------- Scheduling ----------
 
-const algoNames: Record<SchedAlgo, string> = {
-  FCFS: 'FCFS',
-  SJF: 'SJF (non-preemptive)',
-  SRTF: 'SRTF (preemptive SJF)',
-  RR: 'Round Robin with quantum 2',
-  PRIORITY: 'Priority (non-preemptive, lower number = higher priority)',
-}
+const algoNames = (locale: Locale): Record<SchedAlgo, string> => pick(schedulingContent.schedulingGenText, locale).algoNames
 
 function randomJobs(rng: Rng): Job[] {
   const n = int(rng, 3, 4)
@@ -48,31 +49,41 @@ function randomJobs(rng: Rng): Job[] {
   })
 }
 
-function jobTable(jobs: Job[], withPriority = false) {
-  return jobs.map((j) => `${j.id}: arrival ${j.arrival}, burst ${j.burst}${withPriority ? `, priority ${j.priority}` : ''}`).join('\n')
+function jobTable(locale: Locale, jobs: Job[], withPriority = false) {
+  const t = pick(schedulingContent.schedulingGenText, locale)
+  return jobs.map((j) => t.job(j, withPriority)).join('\n')
 }
 
-function gantt(s: ReturnType<typeof simulate>) {
-  return s.segments.map((x) => `${x.id ?? 'idle'} ${x.start}-${x.end}`).join(', ')
+function gantt(locale: Locale, s: ReturnType<typeof simulate>) {
+  const t = pick(schedulingContent.schedulingGenText, locale)
+  return s.segments.map((x) => `${x.id ?? t.idle} ${x.start}-${x.end}`).join(', ')
 }
 
-function schedAvgWait(rng: Rng): Question {
+function schedAvgWait(rng: Rng, locale: Locale): Question {
+  const t = pick(schedulingContent.schedulingGenText, locale)
   const jobs = randomJobs(rng)
   const algo = choice(rng, ['FCFS', 'SJF', 'SRTF', 'RR', 'PRIORITY'] as const)
   const s = simulate(jobs, algo, 2)
   return {
     kind: 'predict',
     id: uid(rng, 'sched-wait'),
-    prompt: `Using ${algoNames[algo]}, what is the average waiting time? (Round to 2 decimals.)`,
-    scenario: jobTable(jobs, algo === 'PRIORITY'),
+    prompt: t.avgPrompt(algoNames(locale)[algo]),
+    scenario: jobTable(locale, jobs, algo === 'PRIORITY'),
     answer: round2(s.avgWaiting),
     tolerance: 0.011,
-    unit: 'time units',
-    explanation: `Schedule: ${gantt(s)}.\nWaiting times: ${s.stats.map((x) => `${x.id} = ${x.waiting}`).join(', ')}.\nAverage = ${s.stats.reduce((a, x) => a + x.waiting, 0)} / ${s.stats.length} = ${round2(s.avgWaiting)}.`,
+    unit: t.unit,
+    explanation: t.avgExplain(
+      gantt(locale, s),
+      s.stats.map((x) => `${x.id} = ${x.waiting}`).join(', '),
+      s.stats.reduce((a, x) => a + x.waiting, 0),
+      s.stats.length,
+      round2(s.avgWaiting),
+    ),
   }
 }
 
-function schedCompletion(rng: Rng): Question {
+function schedCompletion(rng: Rng, locale: Locale): Question {
+  const t = pick(schedulingContent.schedulingGenText, locale)
   const jobs = randomJobs(rng)
   const algo = choice(rng, ['FCFS', 'SJF', 'SRTF', 'RR'] as const)
   const s = simulate(jobs, algo, 2)
@@ -80,10 +91,10 @@ function schedCompletion(rng: Rng): Question {
   return {
     kind: 'predict',
     id: uid(rng, 'sched-done'),
-    prompt: `Using ${algoNames[algo]}, at what time does ${target.id} finish?`,
-    scenario: jobTable(jobs),
+    prompt: t.donePrompt(algoNames(locale)[algo], target.id),
+    scenario: jobTable(locale, jobs),
     answer: target.completion,
-    explanation: `Schedule: ${gantt(s)}. ${target.id} completes at time ${target.completion}.`,
+    explanation: t.doneExplain(gantt(locale, s), target.id, target.completion),
   }
 }
 
@@ -137,7 +148,8 @@ function stateTransition(rng: Rng, locale: Locale): Question {
 
 // ---------- Threads ----------
 
-function interleaving(rng: Rng): Question {
+function interleaving(rng: Rng, locale: Locale): Question {
+  const text = pick(threadsContent.threadsGenText, locale)
   const order = shuffled(rng, [0, 0, 0, 1, 1, 1])
   let s = initialRace(2, 1, false)
   const prog = program(false)
@@ -151,19 +163,17 @@ function interleaving(rng: Rng): Question {
   return {
     kind: 'predict',
     id: uid(rng, 'thr-interleave'),
-    prompt: 'counter starts at 0 and each thread has its own register. Two threads run counter++ in this exact interleaving. What is the final value of counter?',
+    prompt: text.interleavePrompt,
     scenario: lines.join('\n'),
     answer: s.counter,
-    explanation:
-      s.counter === 2
-        ? 'Each thread finished its STORE before the other one LOADed, so no update was lost: 2.'
-        : 'Both threads LOADed the same old value before either stored its result, so one increment overwrote the other: the final value is 1.',
+    explanation: s.counter === 2 ? text.noLoss : text.lost,
   }
 }
 
 // ---------- Memory ----------
 
-function translation(rng: Rng): Question {
+function translation(rng: Rng, locale: Locale): Question {
+  const t = pick(memoryContent.memoryGenText, locale)
   const pageSize = choice(rng, [256, 512, 1024, 4096])
   const pages = int(rng, 4, 6)
   const frames = shuffled(rng, [...Array(12).keys()]).slice(0, pages)
@@ -176,14 +186,15 @@ function translation(rng: Rng): Question {
   return {
     kind: 'predict',
     id: uid(rng, 'mem-tr'),
-    prompt: `Page size is ${pageSize} bytes. What physical address does virtual address ${va} map to?`,
-    scenario: `Page table (page -> frame):\n${table.map((e, i) => `  ${i} -> ${e.valid ? e.frame : 'invalid'}`).join('\n')}`,
+    prompt: t.trPrompt(pageSize, va),
+    scenario: `${t.trTable}\n${table.map((e, i) => t.seq(`  ${i} -> ${e.valid ? e.frame : t.invalid}`)).join('\n')}`,
     answer: tr.physical!,
-    explanation: `${va} / ${pageSize} = page ${page}, offset ${offset}. Page ${page} is in frame ${tr.frame}, so the physical address is ${tr.frame} x ${pageSize} + ${offset} = ${tr.physical}.`,
+    explanation: t.trExplain(va, pageSize, page, offset, tr.frame!, tr.physical!),
   }
 }
 
-function faults(rng: Rng): Question {
+function faults(rng: Rng, locale: Locale): Question {
+  const t = pick(memoryContent.memoryGenText, locale)
   const refs = Array.from({ length: int(rng, 10, 12) }, () => int(rng, 0, 4))
   const frames = 3
   const algo = choice(rng, ['FIFO', 'LRU', 'OPT'] as const satisfies readonly ReplaceAlgo[])
@@ -191,15 +202,16 @@ function faults(rng: Rng): Question {
   return {
     kind: 'predict',
     id: uid(rng, 'mem-faults'),
-    prompt: `With ${frames} empty frames and ${algo === 'OPT' ? 'Optimal' : algo} replacement, how many page faults occur?`,
-    scenario: `Reference string: ${refs.join(' ')}`,
+    prompt: t.faultsPrompt(frames, algo),
+    scenario: `${t.refString}: ${t.seq(refs.join(' '))}`,
     answer: steps.at(-1)!.faults,
-    unit: 'faults',
-    explanation: `${refs.map((r, i) => `${r}:${steps[i].hit ? 'hit' : 'F'}`).join(' ')}\nTotal faults: ${steps.at(-1)!.faults}.`,
+    unit: t.faultsUnit,
+    explanation: `${t.seq(refs.map((r, i) => `${r}:${steps[i].hit ? 'hit' : 'F'}`).join(' '))}\n${t.totalFaults(steps.at(-1)!.faults)}`,
   }
 }
 
-function addressBits(rng: Rng): Question {
+function addressBits(rng: Rng, locale: Locale): Question {
+  const t = pick(memoryContent.memoryGenText, locale)
   const k = int(rng, 9, 14)
   const bitsTotal = choice(rng, [16, 32])
   const pageSize = 2 ** k
@@ -207,43 +219,43 @@ function addressBits(rng: Rng): Question {
     return {
       kind: 'predict',
       id: uid(rng, 'mem-offset'),
-      prompt: `Pages are ${pageSize.toLocaleString('en-US')} bytes. How many bits of the address are the page offset?`,
+      prompt: t.offsetPrompt(pageSize.toLocaleString('en-US')),
       answer: k,
-      unit: 'bits',
-      explanation: `${pageSize} = 2^${k}, so ${k} bits are needed to address every byte within a page.`,
+      unit: t.bitsUnit,
+      explanation: t.offsetExplain(pageSize, k),
     }
   }
   return {
     kind: 'predict',
     id: uid(rng, 'mem-pagebits'),
-    prompt: `A ${bitsTotal}-bit virtual address space uses ${pageSize.toLocaleString('en-US')}-byte pages. How many bits are the page number?`,
+    prompt: t.pageBitsPrompt(bitsTotal, pageSize.toLocaleString('en-US')),
     answer: bitsTotal - k,
-    unit: 'bits',
-    explanation: `The offset takes ${k} bits (2^${k} = ${pageSize}); the remaining ${bitsTotal} - ${k} = ${bitsTotal - k} bits select the page.`,
+    unit: t.bitsUnit,
+    explanation: t.pageBitsExplain(k, pageSize, bitsTotal),
   }
 }
 
 // ---------- Storage ----------
 
-const diskNames: Record<DiskAlgo, string> = { FCFS: 'FCFS', SSTF: 'SSTF', SCAN: 'SCAN (moving toward 199 first)', CSCAN: 'C-SCAN (moving toward 199, wrap-around counted)' }
-
-function headMovement(rng: Rng): Question {
+function headMovement(rng: Rng, locale: Locale): Question {
+  const t = pick(storageContent.storageGenText, locale)
   const requests = Array.from({ length: int(rng, 4, 6) }, () => int(rng, 0, 199))
   const head = int(rng, 20, 180)
-  const algo = choice(rng, ['FCFS', 'SSTF', 'SCAN', 'CSCAN'] as const)
+  const algo = choice(rng, ['FCFS', 'SSTF', 'SCAN', 'CSCAN'] as const satisfies readonly DiskAlgo[])
   const plan = diskSchedule(requests, head, algo)
   return {
     kind: 'predict',
     id: uid(rng, 'sto-disk'),
-    prompt: `Using ${diskNames[algo]}, what is the total head movement in cylinders? (Cylinders 0-199.)`,
-    scenario: `Head at ${head}\nQueue: ${requests.join(', ')}`,
+    prompt: t.diskPrompt(t.diskNames[algo]),
+    scenario: t.diskScenario(head, requests),
     answer: plan.total,
-    unit: 'cylinders',
-    explanation: `Path: ${plan.path.join(' -> ')}.\nTotal = ${plan.path.slice(1).map((c, i) => Math.abs(c - plan.path[i])).join(' + ')} = ${plan.total}.`,
+    unit: t.diskUnit,
+    explanation: t.diskExplain(plan.path, plan.path.slice(1).map((c, i) => Math.abs(c - plan.path[i])), plan.total),
   }
 }
 
-function blocksNeeded(rng: Rng): Question {
+function blocksNeeded(rng: Rng, locale: Locale): Question {
+  const t = pick(storageContent.storageGenText, locale)
   const blockSize = 4096
   const size = int(rng, 1, 40) * 1000 + int(rng, 0, 999)
   const data = Math.ceil(size / blockSize)
@@ -251,30 +263,29 @@ function blocksNeeded(rng: Rng): Question {
   return {
     kind: 'predict',
     id: uid(rng, 'sto-blocks'),
-    prompt: `Blocks are 4 KiB (4096 bytes). How many disk blocks does a ${size.toLocaleString('en-US')}-byte file use with ${indexed ? 'indexed allocation (one index block per file)' : 'contiguous allocation'}?`,
+    prompt: t.blocksPrompt(size.toLocaleString('en-US'), indexed),
     answer: data + (indexed ? 1 : 0),
-    unit: 'blocks',
-    explanation: `${size} / 4096 rounded up = ${data} data blocks${indexed ? ', plus 1 index block' : ''}. The unused space in the last block is internal fragmentation.`,
+    unit: t.blocksUnit,
+    explanation: t.blocksExplain(size, data, indexed),
   }
 }
 
 // ---------- System calls ----------
 
-const needsSyscall = ['Opening a file', 'Creating a new process', 'Writing text to the terminal', 'Asking the OS for more heap memory', 'Sending a network packet', 'Sleeping for one second', 'Getting the current process ID']
-const noSyscall = ['Adding two integers', 'Calling a function in your own program', 'Reading a local variable', 'Sorting an array in memory', 'Computing a square root', 'Comparing two strings']
-
-function syscallOrNot(rng: Rng): Question {
+function syscallOrNot(rng: Rng, locale: Locale): Question {
+  const t = pick(syscallsContent.syscallsGenText, locale)
   if (rng() < 0.6) {
-    const yes = choice(rng, needsSyscall)
-    return mcq(rng, 'sys-needs', 'Which of these requires a system call?', yes, shuffled(rng, noSyscall).slice(0, 3), `"${yes}" touches something only the kernel controls (files, devices, processes or memory mappings). The others are plain computation in user mode.`)
+    const yes = choice(rng, t.needsSyscall)
+    return mcq(rng, 'sys-needs', t.needsPrompt, yes, shuffled(rng, t.noSyscall).slice(0, 3), t.needsExplain(yes))
   }
-  const no = choice(rng, noSyscall)
-  return mcq(rng, 'sys-not', 'Which of these does NOT need a system call?', no, shuffled(rng, needsSyscall).slice(0, 3), `"${no}" is ordinary computation on the program's own memory, so it runs entirely in user mode.`)
+  const no = choice(rng, t.noSyscall)
+  return mcq(rng, 'sys-not', t.notPrompt, no, shuffled(rng, t.needsSyscall).slice(0, 3), t.notExplain(no))
 }
 
 // ---------- Synchronization ----------
 
-function semaphoreTrace(rng: Rng): Question {
+function semaphoreTrace(rng: Rng, locale: Locale): Question {
+  const t = pick(syncContent.syncGenText, locale)
   const initial = int(rng, 0, 3)
   const ops = Array.from({ length: int(rng, 4, 7) }, () => (rng() < 0.6 ? 'wait' : 'signal') as 'wait' | 'signal')
   const final = runSemaphore(initial, ops)
@@ -283,47 +294,47 @@ function semaphoreTrace(rng: Rng): Question {
   let blocked = 0
   const trace = ops.map((op) => {
     if (op === 'wait') {
-      if (value > 0) return `wait: ${value} -> ${--value}`
+      if (value > 0) return t.waitDec(value, --value)
       blocked++
-      return `wait: value is 0, the thread blocks (${blocked} blocked)`
+      return t.waitBlocks(blocked)
     }
-    if (blocked > 0) return `signal: wakes a blocked thread (${--blocked} blocked)`
-    return `signal: ${value} -> ${++value}`
+    if (blocked > 0) return t.signalWakes(--blocked)
+    return t.signalInc(value, ++value)
   })
   return {
     kind: 'predict',
     id: uid(rng, 'sync-sem'),
-    prompt: `A semaphore starts at ${initial}. Different threads perform these operations in order. ${askBlocked ? 'How many threads are blocked at the end?' : 'What is the semaphore value at the end?'}`,
+    prompt: t.prompt(initial, askBlocked),
     scenario: ops.join(', '),
     answer: askBlocked ? final.blocked : final.value,
-    unit: askBlocked ? 'threads' : undefined,
-    explanation: `${trace.join('\n')}\nFinal value ${final.value}, ${final.blocked} thread(s) blocked. Note that signal() wakes a waiting thread instead of incrementing when someone is blocked.`,
+    unit: askBlocked ? t.unit : undefined,
+    explanation: `${trace.join('\n')}\n${t.summary(final.value, final.blocked)}`,
   }
 }
 
 // ---------- Deadlock ----------
 
-function ragDeadlock(rng: Rng): Question {
+function ragDeadlock(rng: Rng, locale: Locale): Question {
+  const t = pick(deadlockContent.deadlockGenText, locale)
   let s = initialRag()
   const moves = int(rng, 4, 7)
   for (let i = 0; i < moves; i++) s = request(s, choice(rng, s.processes), choice(rng, s.resources))
   const cycle = findCycle(s)
-  const holds = s.resources.map((r) => `${r} held by ${s.holder[r] ?? 'nobody'}`)
-  const waits = s.processes.filter((p) => s.waiting[p]).map((p) => `${p} waits for ${s.waiting[p]}`)
+  const holds = s.resources.map((r) => t.heldBy(r, s.holder[r]))
+  const waits = s.processes.filter((p) => s.waiting[p]).map((p) => t.waitsFor(p, s.waiting[p]!))
   return mcq(
     rng,
     'dl-rag',
-    'Each resource has a single instance. Is the system deadlocked?',
-    cycle ? 'Yes' : 'No',
-    [cycle ? 'No' : 'Yes'],
-    cycle
-      ? `There is a cycle: ${[...cycle, cycle[0]].join(' -> ')}, where each process waits for a resource held by the next one. With single-instance resources a cycle means deadlock.`
-      : 'Follow each "waits for" edge to the holder: no chain loops back to where it started, so there is no circular wait and no deadlock.',
-    [...holds, ...(waits.length ? waits : ['No process is waiting'])].join('\n'),
+    t.ragPrompt,
+    cycle ? t.yes : t.no,
+    [cycle ? t.no : t.yes],
+    cycle ? t.cycle([...cycle, cycle[0]].join(' -> ')) : t.noCycle,
+    [...holds, ...(waits.length ? waits : [t.noneWaiting])].join('\n'),
   )
 }
 
-function bankerSafe(rng: Rng): Question {
+function bankerSafe(rng: Rng, locale: Locale): Question {
+  const t = pick(deadlockContent.deadlockGenText, locale)
   const n = 3
   const allocation = Array.from({ length: n }, () => [int(rng, 0, 3), int(rng, 0, 3)])
   const max = allocation.map((row) => row.map((a) => a + int(rng, 0, 4)))
@@ -334,13 +345,13 @@ function bankerSafe(rng: Rng): Question {
   return mcq(
     rng,
     'dl-banker',
-    "Two resource types A and B. Is this state safe according to the banker's algorithm?",
-    res.safe ? 'Safe' : 'Unsafe',
-    [res.safe ? 'Unsafe' : 'Safe'],
-    `Need = Max - Allocation: ${needs.map((x, i) => `P${i} ${fmt(x)}`).join(', ')}.\n` +
+    t.bankerPrompt,
+    res.safe ? t.safe : t.unsafe,
+    [res.safe ? t.unsafe : t.safe],
+    t.needs(needs.map((x, i) => `P${i} ${fmt(x)}`).join(', ')) +
       (res.safe
-        ? `Safe sequence: ${res.sequence.map((i) => `P${i}`).join(', ')}. Each one's Need fits in Work, and when it finishes its Allocation is added back to Work.`
-        : `Starting from Work = ${fmt(input.available)}${res.sequence.length ? `, ${res.sequence.map((i) => `P${i}`).join(', ')} can finish, but then` : ''} no remaining process's Need fits in Work, so no safe sequence exists.`),
+        ? t.safeSeq(res.sequence.map((i) => `P${i}`).join(', '))
+        : t.unsafeSeq(fmt(input.available), res.sequence.length ? res.sequence.map((i) => `P${i}`).join(', ') : null)),
     `Available: ${fmt(input.available)}\n${allocation.map((a, i) => `P${i}: Allocation ${fmt(a)}, Max ${fmt(max[i])}`).join('\n')}`,
   )
 }

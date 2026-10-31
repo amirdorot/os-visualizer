@@ -1,43 +1,22 @@
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { Challenges } from '../../components/Challenges'
-import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Callout, Card } from '../../components/ui'
-import { challenges } from '../../data/challenges'
+import { useChallenges } from '../../data/challenges'
+import { useQuiz } from '../../data/quizzes'
 import { findCycle, initialRag, need, release, request, safety, textbookExample, validate, type BankerInput, type RagState } from '../../engines/deadlock'
 import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
+import { useUi } from '../../i18n/ui'
+import { useText } from '../../i18n'
 import { cx, inputClass } from '../../lib/utils'
-import { deadlockQuiz } from './quiz'
+import { deadlockText } from './pageText'
 
 export default function DeadlockPage() {
+  const t = useText(deadlockText)
+  const questions = useQuiz('deadlock')
   return (
-    <TopicLayout
-      topicId="deadlock"
-      questions={deadlockQuiz}
-      intro={
-        <>
-          A <Term k="deadlock">deadlock</Term> happens when a group of processes each hold something another one needs, and
-          all of them wait forever. The OS can detect deadlocks by looking for cycles in a{' '}
-          <Term k="rag">resource allocation graph</Term>, or avoid them entirely by only granting requests that keep the
-          system in a <Term k="safestate">safe state</Term>.
-        </>
-      }
-      keyIdeas={[
-        <>
-          All four <Term k="coffman">Coffman conditions</Term> are needed: mutual exclusion, hold and wait, no preemption,
-          circular wait. Break one and deadlock is impossible.
-        </>,
-        <>
-          With one instance of each resource, <strong>a cycle in the graph means deadlock</strong>. With several instances it
-          only means deadlock is possible.
-        </>,
-        <>
-          The <Term k="banker">banker's algorithm</Term> checks whether every process could still finish in some order before
-          it grants a request.
-        </>,
-      ]}
-    >
+    <TopicLayout topicId="deadlock" questions={questions} intro={t.intro} keyIdeas={t.keyIdeas}>
       <RagLab />
       <BankerLab />
     </TopicLayout>
@@ -95,6 +74,9 @@ function Edge({ from, to, dashed, hot }: { from: { x: number; y: number }; to: {
 }
 
 function RagLab() {
+  const t = useText(deadlockText)
+  const ui = useUi()
+  const challenges = useChallenges('deadlock')
   const [shared, setShared] = useUrlState('graph', initialRag(), ragCodec)
   const [history, setHistory] = useState<RagState[]>(() => [shared])
   const s = history[history.length - 1]
@@ -113,21 +95,21 @@ function RagLab() {
     <Card
       id="graph"
       share
-      title="Resource allocation graph"
-      subtitle="Each resource (square) has one instance. Use the table to make processes (circles) request and release resources, and watch for a cycle."
+      title={t.ragTitle}
+      subtitle={t.ragSubtitle}
       actions={
         <>
           <Button size="sm" onClick={() => setHistory(history.slice(0, -1))} disabled={history.length < 2}>
-            Undo
+            {t.undo}
           </Button>
           <Button size="sm" onClick={() => setHistory([initialRag()])}>
-            Reset
+            {ui.sim.reset}
           </Button>
         </>
       }
     >
       <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
-        <svg viewBox="0 0 400 300" className="w-full max-w-md text-muted" role="img" aria-label={cycle ? `Graph with a deadlock cycle through ${cycle.join(', ')}` : 'Resource allocation graph with no cycle'}>
+        <svg viewBox="0 0 400 300" className="w-full max-w-md text-muted" role="img" aria-label={cycle ? t.graphCycle(cycle) : t.graphNoCycle}>
           <defs>
             <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
               <path d="M0 0L10 5L0 10z" fill="currentColor" />
@@ -168,7 +150,7 @@ function RagLab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-start text-xs uppercase tracking-wide text-muted">
-                  <th className="p-1.5">Process</th>
+                  <th className="p-1.5">{t.process}</th>
                   {s.resources.map((r) => (
                     <th key={r} className="p-1.5">
                       {r}
@@ -181,7 +163,7 @@ function RagLab() {
                   <tr key={p} className="border-t border-line">
                     <td className="p-1.5 font-mono font-bold">
                       {p}
-                      {s.waiting[p] && <span className="ms-1 text-xs font-normal text-amber-600 dark:text-amber-300">waiting</span>}
+                      {s.waiting[p] && <span className="ms-1 text-xs font-normal text-amber-600 dark:text-amber-300">{t.waiting}</span>}
                     </td>
                     {s.resources.map((r) => {
                       const holds = s.holder[r] === p
@@ -189,14 +171,14 @@ function RagLab() {
                       return (
                         <td key={r} className="p-1">
                           {holds ? (
-                            <Button size="sm" className="w-full" onClick={() => push(release(s, p, r))} title={s.waiting[p] ? 'The OS preempts the resource from this process' : undefined}>
-                              {s.waiting[p] ? 'Preempt' : 'Release'}
+                            <Button size="sm" className="w-full" onClick={() => push(release(s, p, r))} title={s.waiting[p] ? t.preemptTitle : undefined}>
+                              {s.waiting[p] ? t.preempt : t.release}
                             </Button>
                           ) : waitsHere ? (
-                            <span className="block rounded-lg border border-dashed border-amber-500 px-2 py-1 text-center text-xs">requested</span>
+                            <span className="block rounded-lg border border-dashed border-amber-500 px-2 py-1 text-center text-xs">{t.requested}</span>
                           ) : (
                             <Button size="sm" variant="ghost" className="w-full border border-line" disabled={s.waiting[p] !== null} onClick={() => push(request(s, p, r))}>
-                              Request
+                              {t.request}
                             </Button>
                           )}
                         </td>
@@ -208,22 +190,20 @@ function RagLab() {
             </table>
           </div>
           <div className="flex flex-wrap gap-4 text-xs text-muted">
-            <span>Solid arrow R to P: P holds R</span>
-            <span>Dashed arrow P to R: P is waiting for R</span>
+            <span>{t.legendHolds}</span>
+            <span>{t.legendWaits}</span>
           </div>
           {cycle ? (
             <Callout tone="bad">
-              <strong>Deadlock!</strong>{' '}
-              {cycle.map((p) => `${p} waits for ${s.waiting[p]}, held by ${s.holder[s.waiting[p]!]}`).join('; ')}. None of
-              them can ever continue. To recover, the OS must preempt a resource or kill a process in the cycle.
+              <strong>{t.deadlock}</strong> {t.cycleText(cycle.map((p) => ({ p, r: s.waiting[p]!, holder: s.holder[s.waiting[p]!]! })))}
             </Callout>
           ) : Object.values(s.waiting).some(Boolean) ? (
-            <Callout tone="warn">Some processes are waiting, but there is no cycle: once the holder releases, they will get the resource.</Callout>
+            <Callout tone="warn">{t.waitingNoCycle}</Callout>
           ) : (
-            <Callout>No one is waiting. Try: P1 requests R1, P2 requests R2, then P1 requests R2 and P2 requests R1.</Callout>
+            <Callout>{t.nobodyWaiting}</Callout>
           )}
           <Challenges
-            items={challenges.deadlock.slice(0, 2)}
+            items={challenges.slice(0, 2)}
             met={{
               'ch-dl-deadlock': cycle !== null,
               'ch-dl-three': (cycle?.length ?? 0) >= 3,
@@ -238,6 +218,9 @@ function RagLab() {
 const RES = ['A', 'B', 'C']
 
 function BankerLab() {
+  const t = useText(deadlockText)
+  const ui = useUi()
+  const challenges = useChallenges('deadlock')
   const [available, setAvailable] = useUrlState('available', [textbookExample.available], codecs.grid(1, 3, 12))
   const [max, setMax] = useUrlState('max', textbookExample.max, codecs.grid(5, 3, 12))
   const [allocation, setAllocation] = useUrlState('allocation', textbookExample.allocation, codecs.grid(5, 3, 12))
@@ -279,19 +262,19 @@ function BankerLab() {
     <Card
       id="banker"
       share
-      title="Banker's algorithm: is this state safe?"
-      subtitle="Edit Allocation, Max and Available, then step through the safety check. A process can finish if its Need fits in Work; when it finishes, it gives back everything it holds."
+      title={t.bankerTitle}
+      subtitle={t.bankerSubtitle}
       actions={
         <Button size="sm" onClick={() => (setInput(textbookExample), setShown(0))}>
-          Load textbook example
+          {t.loadExample}
         </Button>
       }
     >
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" dir="ltr">
         <table className="text-sm">
           <thead>
             <tr className="text-xs uppercase tracking-wide text-muted">
-              <th className="p-1.5 text-start">Process</th>
+              <th className="p-1.5 text-start">{t.process}</th>
               <th className="p-1.5" colSpan={3}>
                 Allocation
               </th>
@@ -301,7 +284,7 @@ function BankerLab() {
               <th className="p-1.5" colSpan={3}>
                 Need = Max - Allocation
               </th>
-              <th className="p-1.5 text-start">Status</th>
+              <th className="p-1.5 text-start">{t.status}</th>
             </tr>
             <tr className="font-mono text-xs text-muted">
               <th />
@@ -318,12 +301,12 @@ function BankerLab() {
                   <td className="p-1.5 font-mono font-bold">P{i}</td>
                   {RES.map((r, j) => (
                     <td key={`a${r}`} className="p-0.5">
-                      {numInput(input.allocation[i][j], (v) => update((d) => void (d.allocation[i][j] = v)), `P${i} allocation ${r}`)}
+                      {numInput(input.allocation[i][j], (v) => update((d) => void (d.allocation[i][j] = v)), t.allocationLabel(`P${i}`, r))}
                     </td>
                   ))}
                   {RES.map((r, j) => (
                     <td key={`m${r}`} className="p-0.5">
-                      {numInput(input.max[i][j], (v) => update((d) => void (d.max[i][j] = v)), `P${i} max ${r}`)}
+                      {numInput(input.max[i][j], (v) => update((d) => void (d.max[i][j] = v)), t.maxLabel(`P${i}`, r))}
                     </td>
                   ))}
                   {RES.map((r, j) => (
@@ -332,7 +315,7 @@ function BankerLab() {
                     </td>
                   ))}
                   <td className="p-1.5 text-xs">
-                    {done ? <span className="font-semibold text-emerald-600 dark:text-emerald-300">finished #{finishedSoFar.indexOf(i) + 1}</span> : isCurrent ? <span className="text-rose-600 dark:text-rose-300">must wait</span> : ''}
+                    {done ? <span className="font-semibold text-emerald-600 dark:text-emerald-300">{t.finished(finishedSoFar.indexOf(i) + 1)}</span> : isCurrent ? <span className="text-rose-600 dark:text-rose-300">{t.mustWait}</span> : ''}
                   </td>
                 </tr>
               )
@@ -341,13 +324,13 @@ function BankerLab() {
         </table>
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center gap-4">
+      <div className="mt-4 flex flex-wrap items-center gap-4" dir="ltr">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold">Available</span>
           {RES.map((r, j) => (
             <label key={r} className="flex items-center gap-1 font-mono text-xs">
               {r}
-              {numInput(input.available[j], (v) => update((d) => void (d.available[j] = v)), `Available ${r}`)}
+              {numInput(input.available[j], (v) => update((d) => void (d.available[j] = v)), t.availableLabel(r))}
             </label>
           ))}
         </div>
@@ -358,43 +341,32 @@ function BankerLab() {
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Button onClick={() => setShown(Math.max(0, shown - 1))} disabled={shown === 0}>
-          Step back
+          {ui.sim.back}
         </Button>
         <Button variant="primary" onClick={() => setShown(shown + 1)} disabled={!!error || shown >= steps.length}>
-          {shown === 0 ? 'Start safety check' : 'Next step'}
+          {shown === 0 ? t.start : t.next}
         </Button>
         <Button onClick={() => setShown(steps.length)} disabled={!!error || shown >= steps.length}>
-          Run to the end
+          {t.runToEnd}
         </Button>
       </div>
 
       <div className="mt-4 grid gap-3">
         {error ? (
-          <Callout tone="warn">{error} Allocation can never exceed Max.</Callout>
+          <Callout tone="warn">{t.error(error)}</Callout>
         ) : current && !finishedCheck ? (
-          <Callout tone={current.ok ? 'good' : 'bad'}>
-            P{current.process}: Need ({current.need.join(', ')}) {current.ok ? '<=' : 'is not <='} Work ({current.work.join(', ')}).{' '}
-            {current.ok
-              ? `P${current.process} can get everything it needs, run to completion, and release its Allocation (${input.allocation[current.process].join(', ')}).`
-              : `P${current.process} might have to wait, so skip it for now and try the next process.`}
-          </Callout>
+          <Callout tone={current.ok ? 'good' : 'bad'}>{t.step(current, input.allocation[current.process])}</Callout>
         ) : finishedCheck ? (
           result.safe ? (
-            <Callout tone="good">
-              <strong>Safe.</strong> Safe sequence: {result.sequence.map((i) => `P${i}`).join(', ')}. Even if every process asks for
-              its maximum, they can all finish in this order.
-            </Callout>
+            <Callout tone="good">{t.safe(result.sequence.map((i) => `P${i}`).join(', '))}</Callout>
           ) : (
-            <Callout tone="bad">
-              <strong>Unsafe.</strong> {result.sequence.length ? `Only ${result.sequence.map((i) => `P${i}`).join(', ')} can finish. ` : ''}
-              No remaining process's Need fits in Work. The banker would refuse any request leading here.
-            </Callout>
+            <Callout tone="bad">{t.unsafe(result.sequence.length ? result.sequence.map((i) => `P${i}`).join(', ') : null)}</Callout>
           )
         ) : (
-          <Callout>Press "Start safety check" to walk through the algorithm one comparison at a time.</Callout>
+          <Callout>{t.pressStart}</Callout>
         )}
         <Challenges
-          items={challenges.deadlock.slice(2)}
+          items={challenges.slice(2)}
           met={{
             'ch-dl-safe': finishedCheck && result.safe,
             'ch-dl-unsafe': finishedCheck && !result.safe,

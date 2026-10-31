@@ -8,10 +8,12 @@ import { cx, inputClass } from '../../lib/utils'
 import { colorFor } from '../../data/palette'
 import { simulate, type Job, type SchedAlgo, type Tick } from '../../engines/scheduler'
 import { Challenges } from '../../components/Challenges'
-import { challenges } from '../../data/challenges'
+import { useChallenges } from '../../data/challenges'
+import { useQuiz } from '../../data/quizzes'
 import { useSimulation } from '../../hooks/useSimulation'
 import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
-import { schedulingQuiz } from './quiz'
+import { useBidi, useText } from '../../i18n'
+import { schedulingText } from './pageText'
 
 interface WorkJob extends Job {
   name: string
@@ -33,20 +35,9 @@ const defaultJobs: WorkJob[] = [
   { id: 'P4', name: 'Music player', arrival: 3, burst: 2, priority: 1 },
 ]
 
-const algos: { value: SchedAlgo; label: string }[] = [
-  { value: 'FCFS', label: 'FCFS' },
-  { value: 'SJF', label: 'SJF' },
-  { value: 'SRTF', label: 'SRTF' },
-  { value: 'RR', label: 'Round Robin' },
-  { value: 'PRIORITY', label: 'Priority' },
-]
-
-const algoInfo: Record<SchedAlgo, string> = {
-  FCFS: 'First-Come, First-Served: run jobs in arrival order until each finishes. Simple, but short jobs get stuck behind long ones (the convoy effect).',
-  SJF: 'Shortest Job First (non-preemptive): when the CPU frees up, pick the job with the smallest burst. Optimal average waiting time, but long jobs can starve.',
-  SRTF: 'Shortest Remaining Time First: preemptive SJF. A newly arrived job with less remaining work kicks the current job off the CPU.',
-  RR: 'Round Robin: every job gets a fixed time quantum, then goes to the back of the queue. Great response time for interactive systems.',
-  PRIORITY: 'Priority (non-preemptive): the job with the lowest priority number runs next. Low-priority jobs may starve without aging.',
+const useProgramName = () => {
+  const t = useText(schedulingText)
+  return (name: string) => t.programs[pool.findIndex((p) => p.name === name)] ?? name
 }
 
 function registers(job: Job, tick: Tick | undefined, idx: number) {
@@ -78,6 +69,16 @@ export default function SchedulingPage() {
   const [quantum, setQuantum] = useUrlState('quantum', 2, codecs.int(1, 6))
   const schedule = useMemo(() => simulate(jobs, algo, quantum), [jobs, algo, quantum])
   const ids = jobs.map((j) => j.id)
+  const tx = useText(schedulingText)
+  const questions = useQuiz('scheduling')
+  const challenges = useChallenges('scheduling')
+  const algos: { value: SchedAlgo; label: string }[] = [
+    { value: 'FCFS', label: 'FCFS' },
+    { value: 'SJF', label: 'SJF' },
+    { value: 'SRTF', label: 'SRTF' },
+    { value: 'RR', label: 'Round Robin' },
+    { value: 'PRIORITY', label: tx.priorityAlgo },
+  ]
 
   const sim = useSimulation({
     initial: () => 0,
@@ -116,45 +117,27 @@ export default function SchedulingPage() {
   return (
     <TopicLayout
       topicId="scheduling"
-      questions={schedulingQuiz}
-      intro={
-        <>
-          A CPU core can run only one thread at a time. The scheduler decides which ready process runs next and for how
-          long. Switching between processes requires a <Term k="context">context switch</Term>: the kernel saves the
-          running process's registers into its PCB and restores another's.
-        </>
-      }
-      keyIdeas={[
-        <>
-          <strong>Ready queue:</strong> processes that could run right now, waiting for the CPU.
-        </>,
-        <>
-          <strong>Metrics:</strong> <Term k="turnaround">turnaround</Term> = completion - arrival;{' '}
-          <Term k="waiting">waiting</Term> = turnaround - burst.
-        </>,
-        <>
-          <strong><Term k="preemption">Preemptive</Term></strong> schedulers can take the CPU away mid-burst; non-preemptive
-          ones wait for the job to finish.
-        </>,
-      ]}
+      questions={questions}
+      intro={tx.intro}
+      keyIdeas={tx.keyIdeas}
     >
       <Card
         id="workload"
         share
-        title="1. Build a workload"
-        subtitle="Drag programs from the pool into the workload (or click them), then tune arrival, burst and priority."
+        title={tx.workloadTitle}
+        subtitle={tx.workloadSubtitle}
       >
         <Workload jobs={jobs} onAdd={addJob} onUpdate={updateJob} onRemove={(id) => setJobs(jobs.filter((j) => j.id !== id))} ids={ids} />
       </Card>
 
       <Card
-        title="2. Choose a scheduling algorithm"
+        title={tx.algoTitle}
         actions={
-          <Segmented label="Scheduling algorithm" value={algo} options={algos} onChange={setAlgo} />
+          <Segmented label={tx.algoLabel} value={algo} options={algos} onChange={setAlgo} />
         }
       >
         <div className="flex flex-wrap items-center gap-4">
-          <p className="flex-1 text-sm text-muted">{algoInfo[algo]}</p>
+          <p className="flex-1 text-sm text-muted">{tx.algoInfo[algo]}</p>
           {algo === 'RR' && (
             <label className="flex items-center gap-3 text-sm">
               <Term k="quantum">Quantum</Term>
@@ -165,9 +148,9 @@ export default function SchedulingPage() {
         </div>
       </Card>
 
-      <Card title="3. Run it" actions={<SimControls sim={sim} label={`t = ${tick?.time ?? 0}`} />}>
+      <Card title={tx.runTitle} actions={<SimControls sim={sim} label={tx.time(tick?.time ?? 0)} />}>
         {jobs.length === 0 ? (
-          <Callout>Add at least one job to the workload to start the simulation.</Callout>
+          <Callout>{tx.emptyWorkload}</Callout>
         ) : (
           <div className="grid gap-5">
             <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
@@ -179,7 +162,7 @@ export default function SchedulingPage() {
           </div>
         )}
         <div className="mt-5">
-          <Challenges items={challenges.scheduling} met={met} />
+          <Challenges items={challenges} met={met} />
         </div>
       </Card>
     </TopicLayout>
@@ -199,6 +182,9 @@ function Workload({
   onUpdate: (id: string, patch: Partial<WorkJob>) => void
   onRemove: (id: string) => void
 }) {
+  const t = useText(schedulingText)
+  const fix = useBidi()
+  const programName = useProgramName()
   const dropRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState(false)
   const dragged = useRef(false)
@@ -210,9 +196,9 @@ function Workload({
   return (
     <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
       <div>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Program pool</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.poolTitle}</div>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-1">
-          {pool.map((p) => (
+          {pool.map((p, i) => (
             <motion.button
               key={p.name}
               type="button"
@@ -231,10 +217,8 @@ function Workload({
               }}
               className="relative cursor-grab rounded-xl border border-line bg-surface-2 px-3 py-2 text-start text-sm shadow-sm active:cursor-grabbing"
             >
-              <div className="font-medium">{p.name}</div>
-              <div className="text-xs text-muted">
-                burst {p.burst} - prio {p.priority}
-              </div>
+              <div className="font-medium">{t.programs[i]}</div>
+              <div className="text-xs text-muted">{t.poolItem(p.burst, p.priority)}</div>
             </motion.button>
           ))}
         </div>
@@ -247,17 +231,17 @@ function Workload({
         )}
       >
         <div className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted">
-          <span>Workload ({jobs.length}/8)</span>
-          <span className="normal-case tracking-normal">Drop programs here</span>
+          <span>{t.workloadCount(jobs.length)}</span>
+          <span className="normal-case tracking-normal">{t.dropHere}</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[460px] text-sm">
             <thead className="text-start text-xs text-muted">
               <tr>
-                <th className="py-1 font-medium">Process</th>
-                <th className="py-1 font-medium">Arrival</th>
-                <th className="py-1 font-medium">Burst</th>
-                <th className="py-1 font-medium">Priority</th>
+                <th className="py-1 font-medium">{t.cols.process}</th>
+                <th className="py-1 font-medium">{t.cols.arrival}</th>
+                <th className="py-1 font-medium">{t.cols.burst}</th>
+                <th className="py-1 font-medium">{t.cols.priority}</th>
                 <th />
               </tr>
             </thead>
@@ -269,14 +253,14 @@ function Workload({
                       <span className="inline-flex items-center gap-2">
                         <span className="size-3 rounded-full" style={{ background: colorFor(ids, j.id) }} />
                         <span className="font-mono font-semibold">{j.id}</span>
-                        <span className="text-muted">{j.name}</span>
+                        <span className="text-muted">{programName(j.name)}</span>
                       </span>
                     </td>
                     {(['arrival', 'burst', 'priority'] as const).map((field) => (
                       <td key={field} className="py-1 pe-2">
                         <input
                           type="number"
-                          aria-label={`${j.id} ${field}`}
+                          aria-label={fix(`${j.id} ${t.cols[field]}`)}
                           min={field === 'arrival' ? 0 : 1}
                           max={field === 'arrival' ? 30 : 15}
                           value={j[field]}
@@ -289,8 +273,8 @@ function Workload({
                       </td>
                     ))}
                     <td className="py-1 text-end">
-                      <Button size="sm" variant="ghost" onClick={() => onRemove(j.id)} aria-label={`Remove ${j.id}`}>
-                        Remove
+                      <Button size="sm" variant="ghost" onClick={() => onRemove(j.id)} aria-label={t.removeLabel(j.id)}>
+                        {t.remove}
                       </Button>
                     </td>
                   </motion.tr>
@@ -334,6 +318,8 @@ function CpuView({
   jobById: (id: string) => WorkJob
   isLast: boolean
 }) {
+  const t = useText(schedulingText)
+  const programName = useProgramName()
   if (!tick) return null
   return (
     <div className="grid gap-4 rounded-2xl border border-line bg-surface-2 p-4">
@@ -341,30 +327,28 @@ function CpuView({
         <div className="relative grid size-36 shrink-0 place-items-center rounded-2xl border-4 border-amber-500/60 bg-surface">
           <span className="absolute start-2 top-1 text-[10px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-300">CPU</span>
           {tick.running ? (
-            <Chip id={tick.running} ids={ids} label={`${tick.remaining[tick.running]} left`} />
+            <Chip id={tick.running} ids={ids} label={t.left(tick.remaining[tick.running])} />
           ) : (
-            <span className="text-sm text-muted">{isLast ? 'All done' : 'Idle'}</span>
+            <span className="text-sm text-muted">{isLast ? t.allDone : t.idle}</span>
           )}
         </div>
         <div className="text-sm">
           {tick.running ? (
             <>
-              <div className="font-semibold">
-                {tick.running} ({jobById(tick.running).name}) is running
-              </div>
-              <div className="text-muted">It needs {tick.remaining[tick.running]} more time unit(s).</div>
+              <div className="font-semibold">{t.isRunning(tick.running, programName(jobById(tick.running).name))}</div>
+              <div className="text-muted">{t.needsMore(tick.remaining[tick.running])}</div>
             </>
           ) : (
-            <div className="text-muted">{isLast ? 'Every job has completed.' : 'No process is ready, so the CPU idles.'}</div>
+            <div className="text-muted">{isLast ? t.everyDone : t.noReady}</div>
           )}
-          {tick.arrived.length > 0 && <div className="mt-1 text-emerald-600 dark:text-emerald-400">Arrived: {tick.arrived.join(', ')}</div>}
-          {tick.completed.length > 0 && <div className="mt-1 text-indigo-600 dark:text-indigo-300">Finished: {tick.completed.join(', ')}</div>}
+          {tick.arrived.length > 0 && <div className="mt-1 text-emerald-600 dark:text-emerald-400">{t.arrived(tick.arrived)}</div>}
+          {tick.completed.length > 0 && <div className="mt-1 text-indigo-600 dark:text-indigo-300">{t.finished(tick.completed)}</div>}
         </div>
       </div>
       <div>
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Ready queue (front to back)</div>
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.readyQueue}</div>
         <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl border border-dashed border-line p-2">
-          {tick.ready.length === 0 && <span className="text-xs text-muted">empty</span>}
+          {tick.ready.length === 0 && <span className="text-xs text-muted">{t.empty}</span>}
           {tick.ready.map((id) => (
             <Chip key={id} id={id} ids={ids} small />
           ))}
@@ -375,6 +359,7 @@ function CpuView({
 }
 
 function PcbCard({ job, tick, ids, role }: { job: WorkJob; tick: Tick; ids: string[]; role: 'save' | 'load' }) {
+  const t = useText(schedulingText)
   const regs = registers(job, tick, ids.indexOf(job.id))
   return (
     <motion.div
@@ -384,7 +369,7 @@ function PcbCard({ job, tick, ids, role }: { job: WorkJob; tick: Tick; ids: stri
     >
       <div className="mb-1 flex items-center gap-2 font-sans text-sm font-semibold">
         <span className="size-3 rounded-full" style={{ background: colorFor(ids, job.id) }} />
-        PCB of {job.id}
+        {t.pcbOf(job.id)}
       </div>
       {Object.entries(regs).map(([k, v]) => (
         <div key={k} className="flex justify-between">
@@ -393,7 +378,7 @@ function PcbCard({ job, tick, ids, role }: { job: WorkJob; tick: Tick; ids: stri
         </div>
       ))}
       <div className="flex justify-between">
-        <span className="text-muted">state</span>
+        <span className="text-muted">{t.stateLabel}</span>
         <span>{role === 'save' ? 'ready' : 'running'}</span>
       </div>
     </motion.div>
@@ -411,15 +396,16 @@ function ContextSwitchView({
   jobById: (id: string) => WorkJob
   switchCount: number
 }) {
+  const t = useText(schedulingText)
   if (!tick) return null
   const from = tick.switchFrom
   const to = tick.running
   return (
     <div className="rounded-2xl border border-line bg-surface-2 p-4">
       <div className="mb-3 flex items-center justify-between">
-        <div className="text-xs font-semibold uppercase tracking-wide text-muted">Context switch</div>
+        <div className="text-xs font-semibold uppercase tracking-wide text-muted">{t.ctxTitle}</div>
         <div className="text-xs text-muted">
-          switches so far: <span className="font-mono font-semibold text-ink">{switchCount}</span>
+          {t.switchesSoFar} <span className="font-mono font-semibold text-ink">{switchCount}</span>
         </div>
       </div>
       <AnimatePresence mode="wait">
@@ -432,25 +418,21 @@ function ContextSwitchView({
                 animate={{ x: [0, 6, 0] }}
                 transition={{ repeat: Infinity, duration: 1 }}
               >
-                kernel
+                {t.kernelSwap[0]}
                 <br />
-                swap
+                {t.kernelSwap[1]}
               </motion.div>
               <PcbCard job={jobById(to)} tick={tick} ids={ids} role="load" />
             </div>
             <ol className="list-decimal space-y-0.5 ps-5 text-sm text-muted">
-              <li>Interrupt: CPU traps into the kernel.</li>
-              <li>Save {from}'s PC, SP and registers into PCB({from}).</li>
-              <li>Scheduler selects {to}.</li>
-              <li>Restore PCB({to}) into the CPU and return to user mode.</li>
+              {t.ctxSteps(from, to).map((s) => (
+                <li key={s}>{s}</li>
+              ))}
             </ol>
           </motion.div>
         ) : (
           <motion.p key="none" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-muted">
-            {to
-              ? `${to} keeps the CPU this tick, so no state needs to be saved or restored.`
-              : 'Nothing to switch right now.'}{' '}
-            Step through the simulation and watch for switches: each one costs time in a real system.
+            {to ? t.keepsCpu(to) : t.nothingToSwitch} {t.stepHint}
           </motion.p>
         )}
       </AnimatePresence>
@@ -469,11 +451,12 @@ function Gantt({
   filled: number
   ids: string[]
 }) {
+  const t = useText(schedulingText)
   const width = Math.max(total, 1)
   const step = total > 30 ? 5 : total > 15 ? 2 : 1
   return (
     <div>
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Gantt chart</div>
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.ganttTitle}</div>
       <div className="relative h-12 overflow-hidden rounded-xl border border-line bg-surface-2" dir="ltr">
         {segments
           .filter((s) => s.start < filled)
@@ -493,7 +476,7 @@ function Gantt({
                   background: s.id ? colorFor(ids, s.id) : undefined,
                 }}
               >
-                {s.id ?? 'idle'}
+                {s.id ?? t.ganttIdle}
               </motion.div>
             )
           })}
@@ -521,20 +504,22 @@ function StatsTable({
   ids: string[]
   jobs: WorkJob[]
 }) {
+  const t = useText(schedulingText)
+  const programName = useProgramName()
   const allDone = schedule.stats.every((s) => s.completion <= filled)
+  const cols = ['process', 'arrival', 'burst', 'completion', 'turnaround', 'waiting', 'response'] as const
+  const [avgWaiting, avgTurnaround, avgResponse, switches] = t.stats
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[480px] text-sm">
           <thead className="text-start text-xs text-muted">
             <tr>
-              <th className="py-1 font-medium">Process</th>
-              <th className="py-1 font-medium">Arrival</th>
-              <th className="py-1 font-medium">Burst</th>
-              <th className="py-1 font-medium">Completion</th>
-              <th className="py-1 font-medium">Turnaround</th>
-              <th className="py-1 font-medium">Waiting</th>
-              <th className="py-1 font-medium">Response</th>
+              {cols.map((c) => (
+                <th key={c} className="py-1 font-medium">
+                  {t.cols[c]}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="font-mono">
@@ -546,7 +531,7 @@ function StatsTable({
                     <span className="inline-flex items-center gap-2">
                       <span className="size-3 rounded-full" style={{ background: colorFor(ids, s.id) }} />
                       {s.id}
-                      <span className="font-sans text-xs text-muted">{jobs.find((j) => j.id === s.id)?.name}</span>
+                      <span className="font-sans text-xs text-muted">{programName(jobs.find((j) => j.id === s.id)?.name ?? '')}</span>
                     </span>
                   </td>
                   <td>{s.arrival}</td>
@@ -562,10 +547,10 @@ function StatsTable({
         </table>
       </div>
       <div className="grid grid-cols-2 content-start gap-2 lg:w-64">
-        <Stat label="Avg waiting" value={allDone ? schedule.avgWaiting.toFixed(2) : '?'} />
-        <Stat label="Avg turnaround" value={allDone ? schedule.avgTurnaround.toFixed(2) : '?'} />
-        <Stat label="Avg response" value={allDone ? schedule.avgResponse.toFixed(2) : '?'} />
-        <Stat label="Switches" value={allDone ? schedule.contextSwitches : '?'} />
+        <Stat label={avgWaiting} value={allDone ? schedule.avgWaiting.toFixed(2) : '?'} />
+        <Stat label={avgTurnaround} value={allDone ? schedule.avgTurnaround.toFixed(2) : '?'} />
+        <Stat label={avgResponse} value={allDone ? schedule.avgResponse.toFixed(2) : '?'} />
+        <Stat label={switches} value={allDone ? schedule.contextSwitches : '?'} />
       </div>
     </div>
   )

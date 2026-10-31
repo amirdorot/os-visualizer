@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 test('switching to Hebrew translates the site and lays it out right to left', async ({ page }) => {
   await page.goto('glossary')
@@ -30,6 +30,25 @@ for (const path of ['', 'processes', 'scheduling', 'memory', 'storage', 'deadloc
   })
 }
 
+for (const [lang, name] of [['he', 'Hebrew'], ['ar', 'Arabic']]) for (const path of ['processes', 'threads', 'sync', 'deadlock', 'scheduling', 'memory', 'storage', 'syscalls']) {
+  test(`no English sentences in ${name} on /${path}`, async ({ page }) => {
+    await page.goto(`${path}?lang=${lang}`)
+    await expect(page.locator('main h1')).toBeVisible()
+    const english = await page.evaluate(() => {
+      const out: string[] = []
+      const walker = document.createTreeWalker(document.querySelector('main')!, NodeFilter.SHOW_TEXT)
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        if (n.parentElement?.closest('code, pre, svg, main [dir="ltr"]')) continue
+        const s = n.textContent ?? ''
+        if (/[\u0590-\u06FF]/.test(s)) continue
+        if (/[A-Za-z]+(?:[ ,']+[A-Za-z]+){4,}/.test(s)) out.push(s.trim())
+      }
+      return out
+    })
+    expect(english).toEqual([])
+  })
+}
+
 test('the processes simulation speaks Hebrew', async ({ page }) => {
   await page.goto('processes?lang=he')
   await expect(page.getByRole('heading', { level: 1, name: 'Processes' })).toBeVisible()
@@ -40,12 +59,9 @@ test('the processes simulation speaks Hebrew', async ({ page }) => {
   await expect(page.getByText('ליצור zombie process')).toBeVisible()
 })
 
-test('brackets stay attached to English names in right-to-left text', async ({ page }) => {
-  await page.goto('processes?lang=he')
-  await page.getByRole('button', { name: 'הרצה על ה-CPU' }).click()
-  await page.getByTitle('שכפול ה-process הזה').click()
-  const placements = await page.evaluate(() => {
-    const out: boolean[] = []
+const bracketPlacements = (page: Page) =>
+  page.evaluate(() => {
+    const out: { ok: boolean; text: string }[] = []
     const walker = document.createTreeWalker(document.querySelector('main')!, NodeFilter.SHOW_TEXT)
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const s = n.textContent ?? ''
@@ -58,11 +74,25 @@ test('brackets stay attached to English names in right-to-left text', async ({ p
         open.setStart(n, at)
         open.setEnd(n, at + 1)
         const a = letter.getBoundingClientRect()
-        if (a.width) out.push(open.getBoundingClientRect().left >= a.left)
+        if (a.width) out.push({ ok: open.getBoundingClientRect().left >= a.left, text: s.trim() })
       }
     }
     return out
   })
+
+test('brackets stay attached to English names in right-to-left text', async ({ page }) => {
+  await page.goto('processes?lang=he')
+  await page.getByRole('button', { name: 'הרצה על ה-CPU' }).click()
+  await page.getByTitle('שכפול ה-process הזה').click()
+  const placements = await bracketPlacements(page)
   expect(placements.length).toBeGreaterThan(5)
-  expect(placements.every(Boolean)).toBe(true)
+  expect(placements.filter((p) => !p.ok)).toEqual([])
 })
+
+for (const lang of ['he', 'ar']) for (const path of ['threads', 'sync', 'deadlock', 'scheduling', 'memory', 'storage', 'syscalls']) {
+  test(`brackets stay attached in ${lang} on /${path}`, async ({ page }) => {
+    await page.goto(`${path}?lang=${lang}`)
+    await expect(page.locator('main h1')).toBeVisible()
+    expect((await bracketPlacements(page)).filter((p) => !p.ok)).toEqual([])
+  })
+}

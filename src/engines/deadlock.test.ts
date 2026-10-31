@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { findCycle, initialRag, release, request, safety, textbookExample } from './deadlock'
+import { findCycle, initialRag, release, request, safety, textbookExample, validate } from './deadlock'
 
 describe('resource allocation graph', () => {
   it('detects the classic two-process deadlock', () => {
@@ -40,6 +40,13 @@ describe("banker's safety algorithm", () => {
     const r = safety(textbookExample)
     expect(r.safe).toBe(true)
     expect(r.sequence).toEqual([1, 3, 4, 0, 2])
+  })
+
+  it('rejects an Allocation larger than Max', () => {
+    expect(validate(textbookExample)).toBeNull()
+    const allocation = textbookExample.allocation.map((row) => [...row])
+    allocation[3][1] = 3
+    expect(validate({ ...textbookExample, allocation })).toEqual({ process: 3, resource: 'B' })
   })
 
   it('reports an unsafe state', () => {

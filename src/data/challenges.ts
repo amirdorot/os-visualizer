@@ -2,6 +2,13 @@ import { useMemo } from 'react'
 import { useLocale } from '../i18n'
 import { localizeChallenges, type Translations } from '../i18n/content'
 import { processesChallengeText } from '../topics/processes/content'
+import { threadsChallengeText } from '../topics/threads/content'
+import { syncChallengeText } from '../topics/sync/content'
+import { deadlockChallengeText } from '../topics/deadlock/content'
+import { schedulingChallengeText } from '../topics/scheduling/content'
+import { memoryChallengeText } from '../topics/memory/content'
+import { storageChallengeText } from '../topics/storage/content'
+import { syscallsChallengeText } from '../topics/syscalls/content'
 import type { ChallengeMeta } from '../types'
 
 export const challenges: Record<string, ChallengeMeta[]> = {
@@ -59,6 +66,13 @@ export function challengeIds(topic: string) {
 
 export const challengeText: Record<string, Translations<Record<string, [string, string]>>> = {
   processes: processesChallengeText,
+  threads: threadsChallengeText,
+  sync: syncChallengeText,
+  deadlock: deadlockChallengeText,
+  scheduling: schedulingChallengeText,
+  memory: memoryChallengeText,
+  storage: storageChallengeText,
+  syscalls: syscallsChallengeText,
 }
 
 export function useChallenges(topic: string): ChallengeMeta[] {

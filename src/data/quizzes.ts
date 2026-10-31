@@ -10,6 +10,13 @@ import { useMemo } from 'react'
 import { useLocale } from '../i18n'
 import { localizeQuestions, type QuestionText, type Translations } from '../i18n/content'
 import { processesQuizText } from '../topics/processes/content'
+import { threadsQuizText } from '../topics/threads/content'
+import { syncQuizText } from '../topics/sync/content'
+import { deadlockQuizText } from '../topics/deadlock/content'
+import { schedulingQuizText } from '../topics/scheduling/content'
+import { memoryQuizText } from '../topics/memory/content'
+import { storageQuizText } from '../topics/storage/content'
+import { syscallsQuizText } from '../topics/syscalls/content'
 import type { Question } from '../types'
 
 export const quizzes: Record<string, Question[]> = {
@@ -29,6 +36,13 @@ export const questionTopic: Record<string, string> = Object.fromEntries(
 
 export const quizText: Record<string, Translations<Record<string, QuestionText>>> = {
   processes: processesQuizText,
+  threads: threadsQuizText,
+  sync: syncQuizText,
+  deadlock: deadlockQuizText,
+  scheduling: schedulingQuizText,
+  memory: memoryQuizText,
+  storage: storageQuizText,
+  syscalls: syscallsQuizText,
 }
 
 /** Every topic's quiz in the current language; ids are the same in every language. */

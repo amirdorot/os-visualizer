@@ -1,7 +1,6 @@
 import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { SimControls } from '../../components/SimControls'
-import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Callout, Card, Field, Segmented, Stat } from '../../components/ui'
 import { cx, inputClass } from '../../lib/utils'
@@ -22,39 +21,23 @@ import {
   type FsResult,
 } from '../../engines/storage'
 import { Challenges } from '../../components/Challenges'
-import { challenges } from '../../data/challenges'
+import { useChallenges } from '../../data/challenges'
+import { useQuiz } from '../../data/quizzes'
 import { useSimulation } from '../../hooks/useSimulation'
 import { codecs, useUrlState } from '../../hooks/useUrlState'
+import { useBidi, useText } from '../../i18n'
+import { storageText } from './pageText'
 
-const pick = (...ids: string[]) => challenges.storage.filter((c) => ids.includes(c.id))
-import { storageQuiz } from './quiz'
+function usePick() {
+  const challenges = useChallenges('storage')
+  return (...ids: string[]) => challenges.filter((c) => ids.includes(c.id))
+}
 
 export default function StoragePage() {
+  const t = useText(storageText)
+  const questions = useQuiz('storage')
   return (
-    <TopicLayout
-      topicId="storage"
-      questions={storageQuiz}
-      intro={
-        <>
-          A disk is just a long array of numbered <Term k="block">blocks</Term>. The file system builds files and folders
-          on top of it: <Term k="inode">inodes</Term> describe files, directories map names to inodes, and a{' '}
-          <Term k="bitmap">free-block bitmap</Term> tracks which blocks are in use.
-        </>
-      }
-      keyIdeas={[
-        <>
-          <strong>Allocation method</strong> decides which blocks a file gets: contiguous, linked chain, or an index block
-          of pointers.
-        </>,
-        <>
-          <strong>Deleting a file</strong> only frees its inode and blocks; the bytes stay on disk until reused.
-        </>,
-        <>
-          <strong>Disk scheduling</strong> reorders pending requests to cut <Term k="seek">seek time</Term> on spinning
-          disks.
-        </>,
-      ]}
-    >
+    <TopicLayout topicId="storage" questions={questions} intro={t.intro} keyIdeas={t.keyIdeas}>
       <FileSystemLab />
       <AllocationComparison />
       <DiskSchedulingLab />
@@ -82,6 +65,9 @@ function inodeColor(id: number) {
 }
 
 function FileSystemLab() {
+  const t = useText(storageText)
+  const fix = useBidi()
+  const pick = usePick()
   const [method, setMethod] = useUrlState<AllocMethod>('allocation', 'contiguous', codecs.oneOf(['contiguous', 'linked', 'indexed']))
   const [fs, setFs] = useState(() => seed(method))
   const [selected, setSelected] = useState<number>(5)
@@ -117,11 +103,11 @@ function FileSystemLab() {
     <Card
       id="explorer"
       share
-      title="File system explorer"
-      subtitle="Create, grow and delete files and watch the inodes, directory tree, disk blocks and bitmap change together."
+      title={t.explorerTitle}
+      subtitle={t.explorerSubtitle}
       actions={
         <Segmented
-          label="Allocation method"
+          label={t.methodLabel}
           value={method}
           onChange={changeMethod}
           options={[
@@ -135,7 +121,7 @@ function FileSystemLab() {
       <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
         <div className="grid content-start gap-4">
           <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Directory tree</div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{t.dirTree}</div>
             <div className="rounded-xl border border-line bg-surface-2 p-2">
               <Tree fs={fs} id={ROOT} selected={selected} cwd={cwd} onSelect={(id) => {
                 setSelected(id)
@@ -145,20 +131,20 @@ function FileSystemLab() {
           </div>
           <div className="grid gap-2 rounded-xl border border-line bg-surface-2 p-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted">
-              In <span className="font-mono normal-case">{pathOf(fs, cwd)}</span>
+              {t.inDir} <span className="font-mono normal-case" dir="ltr">{pathOf(fs, cwd)}</span>
             </div>
-            <Field label="Name">
+            <Field label={t.name}>
               <input value={name} onChange={(e) => setName(e.target.value.replace(/[/\s]/g, ''))} className={inputClass} />
             </Field>
-            <Field label={`Size: ${size} block(s)`}>
+            <Field label={t.size(size)}>
               <input type="range" min={1} max={8} value={size} onChange={(e) => setSize(Number(e.target.value))} />
             </Field>
             <div className="flex flex-wrap gap-2">
               <Button size="sm" variant="primary" onClick={() => apply(createFile(fs, cwd, name, size), fs.nextInode)}>
-                New file
+                {t.newFile}
               </Button>
               <Button size="sm" onClick={() => apply(mkdir(fs, cwd, name), fs.nextInode)}>
-                New folder
+                {t.newFolder}
               </Button>
             </div>
           </div>
@@ -173,7 +159,7 @@ function FileSystemLab() {
                     apply(r)
                   }}
                 >
-                  Append a block
+                  {t.append}
                 </Button>
               )}
               <Button
@@ -185,7 +171,7 @@ function FileSystemLab() {
                   setCwd(parent)
                 }}
               >
-                Delete {sel.type === 'dir' ? 'folder' : 'file'}
+                {sel.type === 'dir' ? t.deleteFolder : t.deleteFile}
               </Button>
             </div>
           )}
@@ -194,9 +180,9 @@ function FileSystemLab() {
         <div className="grid content-start gap-4">
           <div>
             <div className="mb-1 flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-muted">
-              <span>Disk blocks</span>
+              <span>{t.diskBlocks}</span>
               <span className="normal-case tracking-normal">
-                {used}/{fs.disk.length} used
+                {t.used(used, fs.disk.length)}
               </span>
             </div>
             <div className="grid grid-cols-8 gap-1.5" dir="ltr">
@@ -211,7 +197,7 @@ function FileSystemLab() {
                     onClick={() => owner !== null && owner !== META && setSelected(owner)}
                     animate={touched.has(b) ? { scale: [1, 1.15, 1] } : { scale: 1 }}
                     transition={{ duration: 0.4 }}
-                    title={owner === null ? `block ${b}: free` : owner === META ? `block ${b}: ${b === 0 ? 'superblock' : 'inode table'}` : `block ${b}: ${fs.inodes[owner]?.name}`}
+                    title={owner === null ? t.blockFree(b) : owner === META ? (b === 0 ? t.blockSuperblock(b) : t.blockInodeTable(b)) : t.blockOwner(b, fs.inodes[owner]?.name)}
                     className={cx(
                       'relative flex aspect-square flex-col items-center justify-center rounded-lg border font-mono text-[10px] sm:text-xs',
                       owner === null && 'border-dashed border-line text-muted',
@@ -226,77 +212,81 @@ function FileSystemLab() {
                     <span className="font-bold">
                       {owner === META ? (b === 0 ? 'SB' : 'IT') : isIndex ? 'IDX' : order >= 0 ? `#${order}` : ''}
                     </span>
-                    {method === 'linked' && fs.next[b] !== null && <span className="text-[9px] opacity-90">{fs.next[b] === -1 ? 'end' : `->${fs.next[b]}`}</span>}
+                    {method === 'linked' && fs.next[b] !== null && <span className="text-[9px] opacity-90">{fs.next[b] === -1 ? t.end : `->${fs.next[b]}`}</span>}
                   </motion.button>
                 )
               })}
             </div>
-            <p className="mt-1 text-xs text-muted">SB = superblock, IT = inode table. Click a block to select its file.</p>
+            <p className="mt-1 text-xs text-muted">{t.blocksLegend}</p>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-line bg-surface-2 p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Inode {sel?.id ?? '-'}</div>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{fix(t.inodeTitle(sel?.id ?? '-'))}</div>
               {sel ? (
                 <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 font-mono text-xs">
-                  <dt className="text-muted">path</dt>
-                  <dd className="break-all">{pathOf(fs, sel.id)}</dd>
-                  <dt className="text-muted">type</dt>
-                  <dd>{sel.type}</dd>
+                  <dt className="text-muted">{t.rows.path}</dt>
+                  <dd className="break-all">
+                    <span dir="ltr">{pathOf(fs, sel.id)}</span>
+                  </dd>
+                  <dt className="text-muted">{t.rows.type}</dt>
+                  <dd>{t.types[sel.type]}</dd>
                   {sel.type === 'file' ? (
                     <>
-                      <dt className="text-muted">size</dt>
-                      <dd>
-                        {sel.blocks.length} blocks ({sel.blocks.length * 4} KiB)
-                      </dd>
+                      <dt className="text-muted">{t.rows.size}</dt>
+                      <dd>{t.sizeValue(sel.blocks.length)}</dd>
                       {method === 'contiguous' && (
                         <>
-                          <dt className="text-muted">start, length</dt>
+                          <dt className="text-muted">{t.rows.startLength}</dt>
                           <dd>
-                            {sel.blocks[0]}, {sel.blocks.length}
+                            <span dir="ltr">
+                              {sel.blocks[0]}, {sel.blocks.length}
+                            </span>
                           </dd>
                         </>
                       )}
                       {method === 'linked' && (
                         <>
-                          <dt className="text-muted">first block</dt>
+                          <dt className="text-muted">{t.rows.firstBlock}</dt>
                           <dd>{sel.blocks[0]}</dd>
                         </>
                       )}
                       {method === 'indexed' && (
                         <>
-                          <dt className="text-muted">index block</dt>
+                          <dt className="text-muted">{t.rows.indexBlock}</dt>
                           <dd>{sel.indexBlock}</dd>
                         </>
                       )}
-                      <dt className="text-muted">data blocks</dt>
-                      <dd>[{sel.blocks.join(', ')}]</dd>
+                      <dt className="text-muted">{t.rows.dataBlocks}</dt>
+                      <dd>
+                        <span dir="ltr">[{sel.blocks.join(', ')}]</span>
+                      </dd>
                     </>
                   ) : (
                     <>
-                      <dt className="text-muted">entries</dt>
-                      <dd>{sel.children.map((c) => `${fs.inodes[c].name} -> ${c}`).join(', ') || '(empty)'}</dd>
+                      <dt className="text-muted">{t.rows.entries}</dt>
+                      <dd>{sel.children.length ? <span dir="ltr">{sel.children.map((c) => `${fs.inodes[c].name} -> ${c}`).join(', ')}</span> : t.empty}</dd>
                     </>
                   )}
                 </dl>
               ) : (
-                <p className="text-sm text-muted">Select a file or folder.</p>
+                <p className="text-sm text-muted">{t.selectHint}</p>
               )}
             </div>
             <div className="rounded-xl border border-line bg-surface-2 p-3">
-              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Free-block bitmap</div>
-              <div className="grid gap-0.5 font-mono text-[10px]" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.bitmapTitle}</div>
+              <div className="grid gap-0.5 font-mono text-[10px]" dir="ltr" style={{ gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}>
                 {fs.disk.map((o, b) => (
                   <span key={b} className={cx('rounded-sm text-center', o === null ? 'bg-emerald-500/20' : 'bg-rose-500/25', touched.has(b) && 'ring-1 ring-amber-500')}>
                     {o === null ? 0 : 1}
                   </span>
                 ))}
               </div>
-              <p className="mt-2 text-xs text-muted">1 = used, 0 = free. The allocator scans this to find space.</p>
+              <p className="mt-2 text-xs text-muted">{t.bitmapLegend}</p>
             </div>
           </div>
 
-          {result && <Callout tone={result.ok ? 'good' : 'bad'}>{result.message}</Callout>}
+          {result && <Callout tone={result.ok ? 'good' : 'bad'}>{t.msg(result.msg)}</Callout>}
           <Challenges items={pick('ch-sto-grow', 'ch-sto-scatter')} met={{ 'ch-sto-grow': growFailed, 'ch-sto-scatter': scattered }} />
         </div>
       </div>
@@ -349,18 +339,14 @@ function Tree({
 }
 
 function AllocationComparison() {
-  const rows = [
-    ['Contiguous', 'start block + length', 'Excellent', 'Excellent', 'Hard: next block may be taken', 'Yes (external)'],
-    ['Linked', 'first block; each block points to the next', 'Good', 'Poor: must follow the chain', 'Easy', 'No'],
-    ['Indexed', 'an index block listing all data blocks', 'Good', 'Good: one lookup', 'Easy until the index fills', 'No'],
-  ]
+  const t = useText(storageText)
   return (
-    <Card title="Allocation methods compared" subtitle="Switch the method in the explorer above and try growing a file to feel the difference.">
+    <Card title={t.compareTitle} subtitle={t.compareSubtitle}>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="text-start text-xs uppercase tracking-wide text-muted">
             <tr>
-              {['Method', 'Inode stores', 'Sequential read', 'Random access', 'Growing a file', 'Fragmentation'].map((h) => (
+              {t.compareHeaders.map((h) => (
                 <th key={h} className="py-2 pe-3 font-medium">
                   {h}
                 </th>
@@ -368,7 +354,7 @@ function AllocationComparison() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
+            {t.compareRows.map((r) => (
               <tr key={r[0]} className="border-t border-line">
                 {r.map((c, i) => (
                   <td key={i} className={cx('py-2 pe-3', i === 0 && 'font-semibold')}>
@@ -380,10 +366,7 @@ function AllocationComparison() {
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-sm text-muted">
-        Real systems mix these ideas: ext4 uses <em>extents</em> (contiguous runs) described by an index tree, and classic
-        Unix inodes have direct pointers plus single, double and triple indirect blocks.
-      </p>
+      <p className="mt-3 text-sm text-muted">{t.compareNote}</p>
     </Card>
   )
 }
@@ -400,6 +383,8 @@ function parseList(s: string) {
 }
 
 function DiskSchedulingLab() {
+  const t = useText(storageText)
+  const pick = usePick()
   const [reqText, setReqText] = useUrlState('requests', '98, 183, 37, 122, 14, 124, 65, 67', codecs.text(120))
   const [head, setHead] = useUrlState('head', 53, codecs.int(0, MAX_CYL))
   const [algo, setAlgo] = useUrlState<DiskAlgo>('disk', 'FCFS', codecs.oneOf(['FCFS', 'SSTF', 'SCAN', 'CSCAN']))
@@ -429,11 +414,11 @@ function DiskSchedulingLab() {
     <Card
       id="disk"
       share
-      title="Disk scheduling"
-      subtitle="The disk head must visit every pending cylinder. Different orders mean very different amounts of head movement."
+      title={t.diskTitle}
+      subtitle={t.diskSubtitle}
       actions={
         <Segmented
-          label="Disk scheduling algorithm"
+          label={t.algoLabel}
           value={algo}
           onChange={setAlgo}
           options={[
@@ -446,32 +431,32 @@ function DiskSchedulingLab() {
       }
     >
       <div className="mb-4 flex flex-wrap items-end gap-4">
-        <Field label={`Request queue (cylinders 0-${MAX_CYL})`}>
-          <input value={reqText} onChange={(e) => setReqText(e.target.value)} className={cx(inputClass, 'w-80 max-w-full')} />
+        <Field label={t.queueLabel(MAX_CYL)}>
+          <input value={reqText} onChange={(e) => setReqText(e.target.value)} className={cx(inputClass, 'w-80 max-w-full')} dir="ltr" />
         </Field>
-        <Field label="Head starts at">
+        <Field label={t.headStart}>
           <input type="number" min={0} max={MAX_CYL} value={head} onChange={(e) => setHead(Math.max(0, Math.min(MAX_CYL, Number(e.target.value) || 0)))} className={cx(inputClass, 'w-24')} />
         </Field>
         {algo === 'SCAN' && (
           <Segmented
-            label="Initial direction"
+            label={t.direction}
             value={direction}
             onChange={setDirection}
             options={[
-              { value: 'up', label: 'Toward 199' },
-              { value: 'down', label: 'Toward 0' },
+              { value: 'up', label: t.toward199 },
+              { value: 'down', label: t.toward0 },
             ]}
           />
         )}
         <Button size="sm" onClick={() => setReqText(Array.from({ length: 8 }, () => Math.floor(Math.random() * 200)).join(', '))}>
-          Random requests
+          {t.randomRequests}
         </Button>
       </div>
 
-      <SimControls sim={sim} label={`head movement: ${moved} cylinders`} />
+      <SimControls sim={sim} label={t.moved(moved)} />
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-surface-2 p-2">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" role="img" aria-label={`Disk head path: ${plan.path.slice(0, shown + 1).join(' to ')}`}>
+      <div className="mt-4 overflow-x-auto rounded-xl border border-line bg-surface-2 p-2" dir="ltr">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[560px]" role="img" aria-label={t.pathLabel(plan.path.slice(0, shown + 1))}>
           {[0, 50, 100, 150, 199].map((c) => (
             <g key={c}>
               <line x1={x(c)} x2={x(c)} y1={14} y2={H - 4} stroke="var(--line)" />
@@ -491,7 +476,7 @@ function DiskSchedulingLab() {
                 <circle cx={x(c)} cy={y(i)} r={i === shown ? 7 : 4.5} fill={i === 0 ? '#f59e0b' : isExtra ? 'var(--muted)' : '#0ea5e9'} />
                 <text x={x(c) + 10} y={y(i) + 4} fontSize={11} fill="var(--ink)">
                   {c}
-                  {i === 0 ? ' (start)' : isExtra ? ' (edge)' : ''}
+                  {i === 0 ? t.start : isExtra ? t.edge : ''}
                 </text>
               </g>
             )
@@ -501,16 +486,13 @@ function DiskSchedulingLab() {
 
       <div className="mt-4 grid gap-4 md:grid-cols-[1fr_1fr]">
         <div className="grid content-start gap-2">
-          <Stat label={`${algo} total`} value={`${plan.total} cylinders`} />
+          <Stat label={t.total(algo === 'CSCAN' ? 'C-SCAN' : algo)} value={t.cylinders(plan.total)} />
           <p className="text-sm text-muted">
-            {algo === 'FCFS' && 'Serves requests in arrival order. Fair, but the head zig-zags wildly.'}
-            {algo === 'SSTF' && 'Always goes to the closest pending request. Much less movement, but far-away requests can starve.'}
-            {algo === 'SCAN' && 'The elevator algorithm: sweep in one direction to the edge, then reverse. Predictable waits.'}
-            {algo === 'CSCAN' && 'Sweep up to the edge, jump back to cylinder 0 and sweep up again. More uniform wait times than SCAN.'}
+            {t.algoNotes[algo]}
           </p>
         </div>
         <div className="grid content-start gap-1.5">
-          <div className="text-xs font-semibold uppercase tracking-wide text-muted">Compare total head movement</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-muted">{t.compareMovement}</div>
           {compare.map((c) => (
             <div key={c.a} className="grid grid-cols-[60px_1fr_60px] items-center gap-2 text-sm">
               <span className={cx('font-mono', c.a === algo && 'font-bold')}>{c.a === 'CSCAN' ? 'C-SCAN' : c.a}</span>

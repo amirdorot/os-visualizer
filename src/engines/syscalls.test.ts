@@ -18,6 +18,12 @@ describe('system call walkthrough', () => {
     expect(syscallSteps('read').some((s) => s.processState === 'waiting')).toBe(true)
   })
 
+  it('returns the result in rax', () => {
+    const last = syscallSteps('read').at(-1)!
+    expect(last.registers.rax).toEqual({ value: '4096', note: 'bytesRead' })
+    expect(last.msg).toEqual({ k: 'continue', ret: { value: 4096, note: 'bytesRead' } })
+  })
+
   it('getpid never touches a device', () => {
     expect(syscallSteps('getpid').some((s) => s.layer === 'driver' || s.layer === 'hardware')).toBe(false)
   })

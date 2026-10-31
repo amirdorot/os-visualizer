@@ -1,7 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { SimControls } from '../../components/SimControls'
-import { Term } from '../../components/Term'
 import { TopicLayout } from '../../components/TopicLayout'
 import { Button, Callout, Card, Field, Segmented, Stat } from '../../components/ui'
 import { cx, inputClass } from '../../lib/utils'
@@ -18,37 +17,18 @@ import {
   type ReplaceAlgo,
 } from '../../engines/memory'
 import { Challenges } from '../../components/Challenges'
-import { challenges } from '../../data/challenges'
+import { useChallenges } from '../../data/challenges'
+import { useQuiz } from '../../data/quizzes'
+import { ltr, useText } from '../../i18n'
 import { useSimulation } from '../../hooks/useSimulation'
 import { codecs, useUrlState, type Codec } from '../../hooks/useUrlState'
-import { memoryQuiz } from './quiz'
+import { memoryText, type AllocMsg } from './pageText'
 
 export default function MemoryPage() {
+  const t = useText(memoryText)
+  const questions = useQuiz('memory')
   return (
-    <TopicLayout
-      topicId="memory"
-      questions={memoryQuiz}
-      intro={
-        <>
-          Every process believes it has its own private memory starting at address 0. That illusion is{' '}
-          <Term k="virtual">virtual memory</Term>: the MMU translates each address through a page table, and the OS moves{' '}
-          <Term k="page">pages</Term> between RAM and disk on demand.
-        </>
-      }
-      keyIdeas={[
-        <>
-          <strong>Address = page number + offset.</strong> Only the page number is translated; the offset is copied as-is.
-        </>,
-        <>
-          <strong>Missing page?</strong> A <Term k="pagefault">page fault</Term> loads it from disk, evicting a victim
-          chosen by the replacement policy.
-        </>,
-        <>
-          <strong>Contiguous allocation</strong> suffers from <Term k="fragmentation">external fragmentation</Term>; paging
-          avoids it.
-        </>,
-      ]}
-    >
+    <TopicLayout topicId="memory" questions={questions} intro={t.intro} keyIdeas={t.keyIdeas}>
       <AddressTranslation />
       <PageReplacementLab />
       <AllocationLab />
@@ -59,7 +39,9 @@ export default function MemoryPage() {
 const PAGES = 8
 const FRAMES = 8
 
-const pick = (...ids: string[]) => challenges.memory.filter((c) => ids.includes(c.id))
+function useMemoryChallenges(...ids: string[]) {
+  return useChallenges('memory').filter((c) => ids.includes(c.id))
+}
 const fifoFaults = (refs: number[], frames: number) => pageReplacement(refs, frames, 'FIFO').at(-1)?.faults ?? 0
 
 function initialTable(): PageTableEntry[] {
@@ -93,6 +75,8 @@ const tableCodec: Codec<PageTableEntry[]> = {
 }
 
 function AddressTranslation() {
+  const t = useText(memoryText).tr
+  const challenges = useMemoryChallenges('ch-mem-fault')
   const [pageSize, setPageSize] = useUrlState('pagesize', 256, codecs.intOneOf([256, 1024, 4096]))
   const [table, setTable] = useUrlState('table', initialTable(), tableCodec)
   const [input, setInput] = useUrlState('address', '820', codecs.text(12))
@@ -137,11 +121,11 @@ function AddressTranslation() {
     <Card
       id="translation"
       share
-      title="Virtual to physical address translation"
-      subtitle="Type a virtual address (decimal or 0x hex). Click page-table rows to swap pages in or out."
+      title={t.title}
+      subtitle={t.subtitle}
       actions={
         <Segmented
-          label="Page size"
+          label={t.pageSize}
           value={String(pageSize)}
           onChange={(v) => setPageSize(Number(v))}
           options={[
@@ -153,7 +137,7 @@ function AddressTranslation() {
       }
     >
       <div className="mb-4 flex flex-wrap items-end gap-4">
-        <Field label={`Virtual address (0 - ${limit - 1})`}>
+        <Field label={t.addrLabel(limit - 1)}>
           <input value={input} onChange={(e) => setInput(e.target.value)} className={cx(inputClass, 'w-40')} />
         </Field>
         <div className="flex flex-wrap gap-2">
@@ -169,12 +153,12 @@ function AddressTranslation() {
         <div className="mb-5 overflow-x-auto">
           <div className="inline-flex items-stretch gap-1 font-mono text-sm" dir="ltr">
             <div className="rounded-s-xl bg-emerald-500/20 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wide text-muted">page ({tr.pageBits} bits)</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted">{t.pageBits(tr.pageBits)}</div>
               <div className="font-bold">{binary.slice(0, totalBits - tr.offsetBits)}</div>
               <div className="text-xs">= {tr.page}</div>
             </div>
             <div className="rounded-e-xl bg-sky-500/20 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wide text-muted">offset ({tr.offsetBits} bits)</div>
+              <div className="text-[10px] uppercase tracking-wide text-muted">{t.offsetBits(tr.offsetBits)}</div>
               <div className="font-bold">{binary.slice(totalBits - tr.offsetBits)}</div>
               <div className="text-xs">= {tr.offset}</div>
             </div>
@@ -183,16 +167,25 @@ function AddressTranslation() {
       )}
 
       <div className="grid items-start gap-4 lg:grid-cols-[1fr_auto_1fr_auto_1fr]">
-        <MemColumn title="Virtual pages" count={PAGES} highlight={tr && !tr.outOfRange ? tr.page : null} label={(i) => `Page ${i}`} sub={(i) => `${i * pageSize}-${(i + 1) * pageSize - 1}`} tone="emerald" />
+        <MemColumn
+          title={t.virtualPages}
+          count={PAGES}
+          highlight={tr && !tr.outOfRange ? tr.page : null}
+          label={t.page}
+          sub={(i) => ltr(`${i * pageSize}-${(i + 1) * pageSize - 1}`)}
+          tone="emerald"
+        />
         <FlowArrow />
         <div>
-          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Page table (click a row)</div>
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{t.tableTitle}</div>
           <table className="w-full font-mono text-sm">
             <thead className="text-xs text-muted">
               <tr>
-                <th className="text-start font-medium">page</th>
-                <th className="text-start font-medium">frame</th>
-                <th className="text-start font-medium">valid</th>
+                {t.cols.map((c) => (
+                  <th key={c} className="text-start font-medium">
+                    {c}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -200,7 +193,7 @@ function AddressTranslation() {
                 <tr
                   key={i}
                   tabIndex={0}
-                  aria-label={`Page ${i}: ${e.valid ? `in frame ${e.frame}` : 'not in memory'}. Press Enter to swap ${e.valid ? 'out' : 'in'}.`}
+                  aria-label={t.rowLabel(i, e.valid ? e.frame : null)}
                   onClick={() => togglePage(i)}
                   onKeyDown={(ev) => {
                     if (ev.key === 'Enter' || ev.key === ' ') {
@@ -224,13 +217,13 @@ function AddressTranslation() {
         </div>
         <FlowArrow />
         <MemColumn
-          title="Physical frames (RAM)"
+          title={t.physicalFrames}
           count={FRAMES}
           highlight={tr?.frame ?? null}
-          label={(i) => `Frame ${i}`}
+          label={t.frame}
           sub={(i) => {
             const p = table.findIndex((e) => e.valid && e.frame === i)
-            return p >= 0 ? `holds page ${p}` : 'free'
+            return p >= 0 ? t.holds(p) : t.free
           }}
           tone="sky"
         />
@@ -238,33 +231,24 @@ function AddressTranslation() {
 
       <div className="mt-4">
         {!valid ? (
-          <Callout tone="warn">Enter a non-negative number.</Callout>
+          <Callout tone="warn">{t.notNumber}</Callout>
         ) : tr?.outOfRange ? (
-          <Callout tone="bad">
-            Address {parsed} is beyond the {PAGES}-page address space. The MMU raises a segmentation fault and the process is killed.
-          </Callout>
+          <Callout tone="bad">{t.outOfRange(parsed, PAGES)}</Callout>
         ) : tr?.fault ? (
           <Callout tone="bad">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span>
-                <strong>Page fault!</strong> Page {tr.page} is not in RAM. The kernel must load it from disk.
-              </span>
+              <span>{t.fault(tr.page)}</span>
               <Button variant="danger" size="sm" onClick={handleFault}>
-                Handle page fault
+                {t.handle}
               </Button>
             </div>
           </Callout>
         ) : (
-          tr && (
-            <Callout tone="good">
-              Page {tr.page} lives in frame {tr.frame}. Physical address = {tr.frame} x {pageSize} + {tr.offset} ={' '}
-              <strong className="font-mono">{tr.physical}</strong> (0x{tr.physical!.toString(16)}).
-            </Callout>
-          )
+          tr && <Callout tone="good">{t.ok(tr.page, tr.frame!, pageSize, tr.offset, tr.physical!)}</Callout>
         )}
       </div>
       <div className="mt-4">
-        <Challenges items={pick('ch-mem-fault')} met={{ 'ch-mem-fault': handledFault }} />
+        <Challenges items={challenges} met={{ 'ch-mem-fault': handledFault }} />
       </div>
     </Card>
   )
@@ -272,7 +256,7 @@ function AddressTranslation() {
 
 function FlowArrow() {
   return (
-    <div className="hidden self-center text-2xl text-muted lg:block" aria-hidden="true">
+    <div className="hidden self-center text-2xl text-muted lg:block rtl:-scale-x-100" aria-hidden="true">
       <motion.span animate={{ x: [0, 5, 0] }} transition={{ repeat: Infinity, duration: 1.4 }}>
         &rarr;
       </motion.span>
@@ -331,6 +315,8 @@ function parseRefs(s: string) {
 }
 
 function PageReplacementLab() {
+  const t = useText(memoryText).rep
+  const challenges = useMemoryChallenges('ch-mem-lru', 'ch-mem-belady')
   const [refText, setRefText] = useUrlState('refs', '7 0 1 2 0 3 0 4 2 3 0 3 2 1 2 0 1 7 0 1', codecs.text(120))
   const [frames, setFrames] = useUrlState('frames', 3, codecs.int(1, 6))
   const [algo, setAlgo] = useUrlState<ReplaceAlgo>('replace', 'FIFO', codecs.oneOf(['FIFO', 'LRU', 'OPT']))
@@ -351,42 +337,42 @@ function PageReplacementLab() {
     <Card
       id="replacement"
       share
-      title="Page replacement"
-      subtitle="RAM has only a few frames. Step through the reference string and watch which page gets evicted on each fault."
+      title={t.title}
+      subtitle={t.subtitle}
       actions={
         <Segmented
-          label="Replacement algorithm"
+          label={t.algo}
           value={algo}
           onChange={setAlgo}
           options={[
             { value: 'FIFO', label: 'FIFO' },
             { value: 'LRU', label: 'LRU' },
-            { value: 'OPT', label: 'Optimal' },
+            { value: 'OPT', label: t.optimal },
           ]}
         />
       }
     >
       <div className="mb-4 flex flex-wrap items-end gap-4">
-        <Field label="Reference string (page numbers)">
-          <input value={refText} onChange={(e) => setRefText(e.target.value)} className={cx(inputClass, 'w-80 max-w-full')} />
+        <Field label={t.refs}>
+          <input value={refText} onChange={(e) => setRefText(e.target.value)} className={cx(inputClass, 'w-80 max-w-full')} dir="ltr" />
         </Field>
         <label className="flex items-center gap-2 text-sm">
-          <span className="text-muted">Frames</span>
+          <span className="text-muted">{t.frames}</span>
           <input type="range" min={1} max={6} value={frames} onChange={(e) => setFrames(Number(e.target.value))} />
           <span className="font-mono">{frames}</span>
         </label>
         <Button size="sm" onClick={() => setRefText('1 2 3 4 1 2 5 1 2 3 4 5')}>
-          Belady example
+          {t.belady}
         </Button>
       </div>
 
-      <SimControls sim={sim} label={`reference ${shown}/${steps.length}`} />
+      <SimControls sim={sim} label={t.progress(shown, steps.length)} />
 
       <div className="mt-4 overflow-x-auto pb-2" dir="ltr">
         <table className="border-separate border-spacing-1 font-mono text-sm">
           <tbody>
             <tr>
-              <th className="pe-2 text-start text-xs font-medium text-muted">ref</th>
+              <th className="pe-2 text-start text-xs font-medium text-muted">{t.rowRef}</th>
               {refs.map((r, i) => (
                 <td
                   key={i}
@@ -398,7 +384,7 @@ function PageReplacementLab() {
             </tr>
             {Array.from({ length: frames }, (_, f) => (
               <tr key={f}>
-                <th className="pe-2 text-start text-xs font-medium text-muted">frame {f}</th>
+                <th className="pe-2 text-start text-xs font-medium text-muted">{t.rowFrame(f)}</th>
                 {steps.map((s, i) => {
                   const visible = i < shown
                   const changed = !s.hit && s.slot === f
@@ -418,7 +404,7 @@ function PageReplacementLab() {
               </tr>
             ))}
             <tr>
-              <th className="pe-2 text-start text-xs font-medium text-muted">result</th>
+              <th className="pe-2 text-start text-xs font-medium text-muted">{t.rowResult}</th>
               {steps.map((s, i) => (
                 <td key={i} className={cx('text-center text-xs font-bold', s.hit ? 'text-emerald-500' : 'text-rose-500')}>
                   {i < shown ? (s.hit ? 'hit' : 'F') : ''}
@@ -433,31 +419,26 @@ function PageReplacementLab() {
         <AnimatePresence mode="wait">
           <motion.div key={shown} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
             {!cur ? (
-              <Callout>Press play or step forward. Frames start empty, so the first references always fault.</Callout>
+              <Callout>{t.start}</Callout>
             ) : cur.hit ? (
-              <Callout tone="good">Page {cur.ref} is already in frame {cur.slot}: a hit, no disk access needed.</Callout>
+              <Callout tone="good">{t.hit(cur.ref, cur.slot!)}</Callout>
             ) : cur.victim === null ? (
-              <Callout tone="warn">Page fault on {cur.ref}. A free frame ({cur.slot}) is available, so no eviction is needed.</Callout>
+              <Callout tone="warn">{t.freeFrame(cur.ref, cur.slot!)}</Callout>
             ) : (
-              <Callout tone="bad">
-                Page fault on {cur.ref}. All frames are full, so {algo} evicts page {cur.victim}
-                {algo === 'FIFO' && ' (the one loaded earliest)'}
-                {algo === 'LRU' && ' (the one used least recently)'}
-                {algo === 'OPT' && ' (the one needed furthest in the future)'}.
-              </Callout>
+              <Callout tone="bad">{t.evict(cur.ref, algo, cur.victim)}</Callout>
             )}
           </motion.div>
         </AnimatePresence>
         <div className="grid grid-cols-4 gap-2">
-          <Stat label="Faults" value={cur?.faults ?? 0} />
-          {totals.map((t) => (
-            <Stat key={t.a} label={`${t.a} total`} value={t.faults} />
+          <Stat label={t.faults} value={cur?.faults ?? 0} />
+          {totals.map((x) => (
+            <Stat key={x.a} label={t.total(x.a)} value={x.faults} />
           ))}
         </div>
       </div>
       <div className="mt-4">
         <Challenges
-          items={pick('ch-mem-lru', 'ch-mem-belady')}
+          items={challenges}
           met={{
             'ch-mem-lru': totals[0].faults - totals[1].faults >= 4,
             'ch-mem-belady': algo === 'FIFO' && fifoFaults(refs, frames + 1) > fifoFaults(refs, frames),
@@ -497,11 +478,13 @@ const blocksCodec: Codec<MemBlock[]> = {
 const nextProcessNumber = (bs: MemBlock[]) => Math.max(0, ...bs.map((b) => (b.owner?.startsWith('P') ? Number(b.owner.slice(1)) : 0))) + 1
 
 function AllocationLab() {
+  const t = useText(memoryText).alloc
+  const challenges = useMemoryChallenges('ch-mem-frag')
   const [blocks, setBlocks] = useUrlState('memory', initialMem(), blocksCodec)
   const [strategy, setStrategy] = useUrlState<FitStrategy>('fit', 'first', codecs.oneOf(['first', 'best', 'worst']))
   const [size, setSize] = useUrlState('size', 15, codecs.int(1, 100))
   const [counter, setCounter] = useState(() => nextProcessNumber(blocks))
-  const [message, setMessage] = useState<{ tone: 'good' | 'bad' | 'info'; text: string } | null>(null)
+  const [message, setMessage] = useState<{ tone: 'good' | 'bad' | 'info'; msg: AllocMsg } | null>(null)
   const [candidates, setCandidates] = useState<{ starts: number[]; chosen: number | null }>({ starts: [], chosen: null })
   const [fragFailure, setFragFailure] = useState(false)
   const frag = fragmentation(blocks)
@@ -514,10 +497,10 @@ function AllocationLab() {
       if (frag.totalFree >= size) setFragFailure(true)
       setMessage({
         tone: 'bad',
-        text:
+        msg:
           frag.totalFree >= size
-            ? `Allocation of ${size} KB failed even though ${frag.totalFree} KB is free in total: the largest hole is only ${frag.largest} KB. That is external fragmentation.`
-            : `Allocation of ${size} KB failed: only ${frag.totalFree} KB is free.`,
+            ? { k: 'fragFail', size, free: frag.totalFree, largest: frag.largest }
+            : { k: 'noMem', size, free: frag.totalFree },
       })
       return
     }
@@ -525,7 +508,7 @@ function AllocationLab() {
     setCounter((c) => c + 1)
     setMessage({
       tone: 'good',
-      text: `${name} (${size} KB) placed at ${blocks[res.chosen!].start} KB. ${res.candidates.length} hole(s) were big enough; ${strategy}-fit chose the ${strategy === 'first' ? 'first one' : strategy === 'best' ? 'smallest one' : 'largest one'}.`,
+      msg: { k: 'placed', name, size, at: blocks[res.chosen!].start, holes: res.candidates.length, strategy },
     })
   }
 
@@ -542,7 +525,7 @@ function AllocationLab() {
     ])
     setCounter(4)
     setCandidates({ starts: [], chosen: null })
-    setMessage({ tone: 'info', text: 'Memory is now fragmented into four holes of 10, 6, 12 and 20 KB. Try placing a 9 KB process with each strategy.' })
+    setMessage({ tone: 'info', msg: { k: 'fragmented' } })
   }
 
   const owners = [...new Set(blocks.map((b) => b.owner).filter((o): o is string => o !== null && o !== 'OS'))]
@@ -551,11 +534,11 @@ function AllocationLab() {
     <Card
       id="allocation"
       share
-      title="Contiguous memory allocation"
-      subtitle="Allocate processes into a 100 KB memory, click a process to free it, and watch holes appear."
+      title={t.title}
+      subtitle={t.subtitle}
       actions={
         <Segmented
-          label="Fit strategy"
+          label={t.fit}
           value={strategy}
           onChange={setStrategy}
           options={[
@@ -567,13 +550,13 @@ function AllocationLab() {
       }
     >
       <div className="mb-4 flex flex-wrap items-end gap-3">
-        <Field label="Process size (KB)">
+        <Field label={t.size}>
           <input type="number" min={1} max={88} value={size} onChange={(e) => setSize(Math.max(1, Math.min(88, Number(e.target.value) || 1)))} className={cx(inputClass, 'w-28')} />
         </Field>
         <Button variant="primary" onClick={doAlloc}>
-          Allocate P{counter}
+          {t.allocate(`P${counter}`)}
         </Button>
-        <Button onClick={fragmentDemo}>Load fragmented example</Button>
+        <Button onClick={fragmentDemo}>{t.fragmented}</Button>
         <Button
           onClick={() => {
             setBlocks(initialMem())
@@ -582,7 +565,7 @@ function AllocationLab() {
             setCandidates({ starts: [], chosen: null })
           }}
         >
-          Reset
+          {t.reset}
         </Button>
       </div>
 
@@ -600,9 +583,9 @@ function AllocationLab() {
                 if (!b.owner || b.owner === 'OS') return
                 setBlocks(free(blocks, b.owner))
                 setCandidates({ starts: [], chosen: null })
-                setMessage({ tone: 'info', text: `${b.owner} exited and freed ${b.size} KB. Adjacent holes are merged (coalesced).` })
+                setMessage({ tone: 'info', msg: { k: 'freed', owner: b.owner, size: b.size } })
               }}
-              title={b.owner ? `${b.owner}: ${b.size} KB (click to free)` : `hole: ${b.size} KB`}
+              title={b.owner ? t.blockTitle(b.owner, b.size) : t.holeTitle(b.size)}
               className={cx(
                 'relative flex flex-col items-center justify-center overflow-hidden border-e border-page text-xs font-semibold',
                 b.owner ? 'text-white' : 'text-muted',
@@ -613,28 +596,28 @@ function AllocationLab() {
                 background: color ?? 'repeating-linear-gradient(45deg, transparent 0 6px, color-mix(in srgb, var(--line) 60%, transparent) 6px 12px)',
               }}
             >
-              <span>{b.owner ?? 'free'}</span>
+              <span>{b.owner ?? t.free}</span>
               <span className="font-mono opacity-80">{b.size}K</span>
             </motion.button>
           )
         })}
       </div>
-      <div className="mt-1 flex justify-between font-mono text-[10px] text-muted">
+      <div className="mt-1 flex justify-between font-mono text-[10px] text-muted" dir="ltr">
         <span>0 KB</span>
         <span>50 KB</span>
         <span>100 KB</span>
       </div>
 
       <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto]">
-        <div>{message && <Callout tone={message.tone}>{message.text}</Callout>}</div>
+        <div>{message && <Callout tone={message.tone}>{t.msg(message.msg)}</Callout>}</div>
         <div className="grid grid-cols-3 gap-2">
-          <Stat label="Free total" value={`${frag.totalFree}K`} />
-          <Stat label="Largest hole" value={`${frag.largest}K`} />
-          <Stat label="Ext. frag" value={`${Math.round(frag.external * 100)}%`} hint="1 - largest hole / total free" />
+          <Stat label={t.freeTotal} value={`${frag.totalFree}K`} />
+          <Stat label={t.largest} value={`${frag.largest}K`} />
+          <Stat label={t.extFrag} value={`${Math.round(frag.external * 100)}%`} hint={t.extFragHint} />
         </div>
       </div>
       <div className="mt-4">
-        <Challenges items={pick('ch-mem-frag')} met={{ 'ch-mem-frag': fragFailure }} />
+        <Challenges items={challenges} met={{ 'ch-mem-frag': fragFailure }} />
       </div>
     </Card>
   )

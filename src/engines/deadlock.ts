@@ -72,10 +72,16 @@ export function need(input: BankerInput): number[][] {
   return input.max.map((row, i) => row.map((m, j) => m - input.allocation[i][j]))
 }
 
-export function validate(input: BankerInput): string | null {
+/** The first process holding more of a resource than its Max, if any. */
+export interface BankerError {
+  process: number
+  resource: string
+}
+
+export function validate(input: BankerInput): BankerError | null {
   for (let i = 0; i < input.max.length; i++)
     for (let j = 0; j < input.available.length; j++)
-      if (input.allocation[i][j] > input.max[i][j]) return `P${i} holds more ${String.fromCharCode(65 + j)} than its Max.`
+      if (input.allocation[i][j] > input.max[i][j]) return { process: i, resource: String.fromCharCode(65 + j) }
   return null
 }
 

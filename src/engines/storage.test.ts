@@ -64,6 +64,6 @@ describe('file system', () => {
     fs = remove(fs, 2).fs
     const r = createFile(fs, ROOT, 'd', 4)
     expect(r.ok).toBe(false)
-    expect(r.message).toContain('fragmentation')
+    expect(r.msg).toEqual({ k: 'fragmented', size: 4, free: 4 })
   })
 })
