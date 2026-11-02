@@ -1,5 +1,5 @@
 export const REPO_URL = 'https://github.com/amirdorot/os-visualizer'
-export const SITE_URL = 'https://amirdorot.github.io/os-visualizer/'
+export const SITE_URL = 'https://os.cellact.nl/'
 
 /** Prefilled GitHub issue for feedback about a specific page. */
 export function feedbackUrl(pathname: string, kind: 'feedback' | 'bug' = 'feedback') {

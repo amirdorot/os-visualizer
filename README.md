@@ -2,7 +2,7 @@
 
 An interactive infographic that teaches how operating systems work. Every topic pairs live, rewindable simulations with challenges that are checked automatically, a quiz with instant feedback, and unlimited generated practice problems.
 
-**Live site:** https://amirdorot.github.io/os-visualizer/
+**Live site:** https://os.cellact.nl/
 
 ## Topics
 
